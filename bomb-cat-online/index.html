@@ -71,6 +71,11 @@
   </main>
   <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden><div class="modal-backdrop" data-close-settings></div><section class="modal-card"><button class="modal-close" type="button" data-close-settings aria-label="关闭设置">×</button><p class="eyebrow">AGENT INTEGRATION</p><h2 id="settingsTitle">AI 对手接口</h2><p class="modal-description">由游戏后端转发 AI 请求。接口和令牌仅在服务端配置，无需在浏览器中填写。</p><label>接口地址<input id="apiEndpoint" type="text" value="AGENT_ENDPOINT" readonly /></label><label>授权令牌<input id="apiToken" type="text" value="AGENT_TOKEN（仅服务端读取）" readonly /></label><div class="modal-tip"><b>服务端请求：</b><code>POST AGENT_ENDPOINT</code><br /><b>预期响应：</b><code>{ "action": "play", "cardId": "attack" }</code></div><button id="saveApiButton" class="button button-primary modal-save" type="button">知道了</button></section></div>
   <template id="cardTemplate"><button class="playing-card hand-card" type="button" aria-pressed="false"><span class="card-top"><span class="card-category"></span><svg class="card-mini"><use /></svg></span><span class="card-art"><svg class="card-art-icon"><use /></svg></span><b class="card-name"></b><small class="card-english"></small><span class="card-bottom">点击选择</span><span class="selection-mark" aria-hidden="true">已选</span></button></template>
+
+  <script>
+
+    windows.BOMB_CAT_API_BASE = "https://bomb-cat1-1.onrender.com";
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
