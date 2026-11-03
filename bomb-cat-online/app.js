@@ -470,36 +470,44 @@ function showReinsertModal(deckSize) {
 
   modal.hidden = false;
 
-  document.getElementById('confirmReinsertBtn').onclick = async () => {
+  // 1. 这是处理放回炸弹的按钮点击事件
+document.getElementById('confirmReinsertBtn').onclick = async () => {
     modal.hidden = true;
     try {
-      setBusy(true);
-      const index = parseInt(slider.value);
-      const payload = await api(`/games/${game.gameId}/reinsert-bomb`, { 
-        method: "POST", 
-        body: JSON.stringify({ index }) 
-      });
-      hydrateGame(payload.game);
-      setStatus("炸弹已放回，AI 开始行动…");
+        setBusy(true);
+        const index = parseInt(slider.value);
+        const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
+            method: "POST",
+            body: JSON.stringify({ index })
+        });
+        
+        // 更新游戏状态
+        hydrateGame(payload.game);
+        setStatus("炸弹已放回，AI 开始行动...");
+        setBusy(false);
+        await startGame();
+      
     } catch (error) {
-      await recoverAction(error);
-    } finally {
-      setBusy(false);
+        await recoverAction(error);
+        setBusy(false);
     }
-  };
-}
-if (payload.exploded) {
-  triggerEffect('explode');
-  setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
-} else if (payload.need_reinsert) {
-  showReinsertModal(game.deck); 
-  setStatus("拆弹成功，请选择炸弹放回的位置。");
-} else {
-  if (game.turn === "player" && game.playerAlive) {
-    triggerEffect('attack_received'); // 触发红色脉冲特效
-    setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
-  } else {
-    setStatus(`你抽取了：${names}，回合结束。`);
-  }
+};
+  
+async function handleDraw() {
+    if (drawPayload.exploded) {  // 炸弹爆炸
+        triggerEffect('explode');
+        setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
+    } else if (drawPayload.need_reinsert) { // 抽到炸弹需要放回
+        showReinsertModal(game.deck); // 这里负责把弹窗显示出来
+        setStatus("拆弹成功，请选择炸弹放回的位置。");
+    } else {
+        if (game.turn === "player" && game.playerAlive) {
+            triggerEffect('attack_received');
+            setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
+        } else {
+            setStatus(`你抽取了：${names}，回合结束。`);
+        }
+        startGame(); // 继续下一回合
+    }
 }
 startGame();
