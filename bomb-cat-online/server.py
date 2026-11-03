@@ -59,7 +59,7 @@ class GameSession:
     discard: str = ""
     turn_index: int = 0
     drawn_this_turn: bool = False
-    extra_turns: int t = 0
+    extra_turns: int = 0
     game_over: bool = False
     winner_id: str | None = None
     logs: list[str] = field(default_factory=lambda: ["五人制对局开始！"])
