@@ -389,6 +389,24 @@ def draw_card(game_id: str):
         "game": session.public_state()
     })
 
+@app.post("/api/games/<game_id>/reinsert-bomb")
+def reinsert_bomb(game_id: str):
+    session = get_session(game_id)
+    if not session: return fail("牌局不存在", 404)
+    
+    data = request.get_json(silent=True) or {}
+    index = data.get("index", len(session.deck)) # 默认放最后
+    
+    # 限制索引范围
+    index = max(0, min(index, len(session.deck)))
+    
+    session.deck.insert(index, "exploding_kitten")
+    add_log(session, f"你将炸弹猫放回了牌堆。")
+    
+    run_until_human(session)
+    
+    return jsonify({"ok": True, "game": session.public_state()})
+    
 @app.post("/api/games/<game_id>/play")
 def play_card(game_id: str):
     session = get_session(game_id)
@@ -415,7 +433,7 @@ def play_card(game_id: str):
                 break
             
     if target_seat:
-        target_seat.extra_turns += 1 # 🌟 加给下一个玩家
+        target_seat.extra_turns += 1
         add_log(session, f"{seat.name} 攻击生效：{target_seat.name} 将承受额外回合！")
         
     elif card_id == "skip":
@@ -454,27 +472,6 @@ def play_card(game_id: str):
         "game": session.public_state(),
         "peek": peek_cards # 将看到的牌发给前端
     })
-
-async function playSelectedCard() {
-  if (!canAct() || !game.selectedCard) return;
-  try {
-    setBusy(true);
-    // 只出牌，不触发 AI
-    const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
-    
-    // 如果是预知未来，弹窗看牌
-    if (played.peek && played.peek.length > 0) {
-      showPeekModal(played.peek);
-    }
-    
-    hydrateGame(played.game);
-    setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
-  } catch (error) { 
-    await recoverAction(error); 
-  } finally { 
-    setBusy(false); 
-  }
-}
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
