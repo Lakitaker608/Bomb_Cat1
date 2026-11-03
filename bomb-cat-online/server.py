@@ -163,11 +163,18 @@ def remote_agent_move(session: GameSession, seat: Seat) -> dict[str, str] | None
     return move
 
 def next_alive_turn(session: GameSession) -> None:
-    # 如果存在额外回合（被攻击），则当前玩家不换，继续行动
-    if session.extra_turns > 0:
-        session.extra_turns -= 1
+    # 检查当前玩家是否还有未完成的“额外回合”
+    if session.current_seat.extra_turns > 0:
+        session.current_seat.extra_turns -= 1
         session.drawn_this_turn = False
         return
+        
+    # 正常轮转下一个存活玩家
+    for _ in range(len(session.seats)):
+        session.turn_index = (session.turn_index + 1) % len(session.seats)
+        if session.current_seat.alive:
+            session.drawn_this_turn = False
+            return
         
     # 正常轮转下一个存活玩家
     for _ in range(len(session.seats)):
@@ -213,10 +220,18 @@ def apply_bot_turn(session: GameSession, seat: Seat) -> None:
         seat.hand.remove(card_id)
         session.discard = card_id
         add_log(session, f"{seat.name} 打出 {CARD_LIBRARY[card_id]['name']}。")
-        
         if card_id == "attack":
-            session.extra_turns += 1
-            add_log(session, f"{seat.name} 的攻击生效，下一个玩家将承受额外回合！")
+            # 寻找下一个存活玩家
+            target_seat = None
+            for i in range(1, len(session.seats)):
+                target_idx = (session.turn_index + i) % len(session.seats)
+                if session.seats[target_idx].alive:
+                    target_seat = session.seats[target_idx]
+                    break
+                    
+            if target_seat:
+                target_seat.extra_turns += 1
+                add_log(session, f"{seat.name} 攻击生效：{target_seat.name} 将承受额外回合！")
         elif card_id == "skip":
             add_log(session, f"{seat.name} 使用了跳过，结束回合。")
             return 
@@ -359,8 +374,17 @@ def play_card(game_id: str):
     peek_cards = [] # 用于存储预知未来的牌
     
     if card_id == "attack":
-        session.extra_turns += 1
-        add_log(session, "攻击生效：下一个对手将承受额外回合！")
+    # 寻找下一个存活玩家
+        target_seat = None
+        for i in range(1, len(session.seats)):
+            target_idx = (session.turn_index + i) % len(session.seats)
+            if session.seats[target_idx].alive:
+                target_seat = session.seats[target_idx]
+                break
+            
+    if target_seat:
+        target_seat.extra_turns += 1 # 🌟 加给下一个玩家
+        add_log(session, f"{seat.name} 攻击生效：{target_seat.name} 将承受额外回合！")
         
     elif card_id == "skip":
         session.drawn_this_turn = True
