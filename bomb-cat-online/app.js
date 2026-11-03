@@ -389,7 +389,24 @@ async function startGame() {
     }
   }
 }
-
+async function playSelectedCard() {
+  if (!canAct() || !game.selectedCard) return;
+  try {
+    setBusy(true);
+    const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
+    
+    if (played.peek && played.peek.length > 0) {
+      showPeekModal(played.peek);
+    }
+    
+    hydrateGame(played.game);
+    setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
+  } catch (error) { 
+    await recoverAction(error); 
+  } finally { 
+    setBusy(false); 
+  }
+}
 function openSettings() {
   previouslyFocused = document.activeElement;
   $("#settingsModal").hidden = false;
