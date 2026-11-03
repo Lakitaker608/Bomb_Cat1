@@ -22,7 +22,13 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from flask import Flask, jsonify, request, send_from_directory
+from zhipuai import ZhipuAI
 
+
+api_key =  os.getenv("ZHIPU_API_KEY")
+if not api_key:
+    raise RuntimeError("请在环境变量中设置 ZHIPU_API_KEY。")
+client = ZhipuAI(api_key=api_key)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
