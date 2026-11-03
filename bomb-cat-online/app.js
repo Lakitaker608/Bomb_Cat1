@@ -280,7 +280,6 @@ async function drawCard() {
     const drawn = payload.drawnCards || [];
     const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
     
-    // 🌟 特效反馈逻辑
     if (payload.exploded) {
       triggerEffect('explode');
       setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
@@ -301,21 +300,76 @@ async function drawCard() {
 
 async function endTurn() {
   if (!canAct() || !game.hand.length) return;
+  
   try {
     setBusy(true);
+    let peekedCards = [];
+
+    // 1. 如果选了牌，先出牌
     if (game.selectedCard) {
       const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
+      
+      // 检查后端有没有返回预知的牌
+      if (played.peek && played.peek.length > 0) {
+        peekedCards = played.peek;
+      }
+      
       hydrateGame(played.game);
     }
+    
     if (game.gameOver) return;
+
+    // 2. 如果刚才看牌了，弹出模态框，并暂停流程
+    if (peekedCards.length > 0) {
+      showPeekModal(peekedCards);
+      return; // 这里先 return，不解除 busy 状态
+    }
+
+    // 3. 如果没有看牌，正常结束回合，呼叫 AI
+    await finishTurnAndRunAI();
+
+  } catch (error) { 
+    await recoverAction(error); 
+    setBusy(false); // 报错时恢复状态
+  }
+}
+
+async function finishTurnAndRunAI() {
+  try {
     setStatus("其他 AI 对手正在依次行动，手牌数量将在服务端返回后更新…");
     const payload = await api(`/games/${game.gameId}/end-turn`, { method: "POST" });
     game.drewThisTurn = false;
     hydrateGame(payload.game);
     setStatus(game.gameOver ? "本局已结束，请查看对局动态。" : "其他对手已完成行动，轮到你了！");
-  } catch (error) { await recoverAction(error); } finally { setBusy(false); }
+  } catch (error) {
+    await recoverAction(error);
+  } finally {
+    setBusy(false); // 这里才真正解除锁定状态
+  }
 }
 
+function showPeekModal(cards) {
+  const modal = document.getElementById('peekModal');
+  const container = document.getElementById('peekCardsContainer');
+  container.innerHTML = ''; // 清空旧内容
+  
+  cards.forEach(cardId => {
+    const node = document.getElementById("cardTemplate").content.firstElementChild.cloneNode(true);
+    populateCard(node, cardId);
+    node.querySelector(".card-bottom").textContent = "牌堆顶部";
+    node.removeAttribute("id"); // 防止ID重复
+    container.appendChild(node);
+  });
+  
+  modal.hidden = false;
+  
+  // 绑定关闭按钮逻辑
+  document.getElementById('closePeekBtn').onclick = async () => {
+    modal.hidden = true;
+    // 玩家看完并点击确认后，现在才真正结束回合！
+    await finishTurnAndRunAI(); 
+  };
+}
 async function startGame() {
   render();
   setBusy(true);
