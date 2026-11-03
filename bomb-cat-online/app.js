@@ -399,9 +399,9 @@ function closeSettings() {
   $("#settingsModal").hidden = true;
   previouslyFocused?.focus();
 }
+$("#endButton").addEventListener("click", playSelectedCard);
 $("#deckButton").addEventListener("click", drawCard);
 $("#drawButton").addEventListener("click", drawCard);
-$("#endButton").addEventListener("click", endTurn);
 $("#settingsButton").addEventListener("click", openSettings);
 document.querySelectorAll("[data-close-settings]").forEach((button) => button.addEventListener("click", closeSettings));
 $("#saveApiButton").addEventListener("click", closeSettings);
@@ -426,16 +426,49 @@ document.addEventListener("keydown", (event) => {
 function triggerEffect(effectType) {
   const body = document.body;
   body.classList.remove('screen-shake', 'flash-red', 'pulse-attack');
-  void body.offsetWidth; // 强制重绘以重启动画
+  void body.offsetWidth;
 
   if (effectType === 'explode') {
     body.classList.add('screen-shake', 'flash-red');
-    // 播放音效（如果后续需要）
   } else if (effectType === 'defuse') {
     body.classList.add('screen-shake');
     setTimeout(() => setStatus("拆弹成功！"), 300);
   } else if (effectType === 'attack_received') {
     body.classList.add('pulse-attack');
   }
+}
+function showReinsertModal(deckSize) {
+  const modal = document.getElementById('reinsertModal');
+  const slider = document.getElementById('bombIndexSlider');
+  const display = document.getElementById('bombIndexDisplay');
+  
+  // 设置滑动条最大值（牌堆剩余数量）
+  slider.max = deckSize;
+  slider.value = Math.floor(deckSize / 2); // 默认放中间
+  display.textContent = `位置：第 ${slider.value} 张`;
+  
+  slider.oninput = () => {
+    display.textContent = `位置：第 ${slider.value} 张`;
+  };
+
+  modal.hidden = false;
+
+  document.getElementById('confirmReinsertBtn').onclick = async () => {
+    modal.hidden = true;
+    try {
+      setBusy(true);
+      const index = parseInt(slider.value);
+      const payload = await api(`/games/${game.gameId}/reinsert-bomb`, { 
+        method: "POST", 
+        body: JSON.stringify({ index }) 
+      });
+      hydrateGame(payload.game);
+      setStatus("炸弹已放回，AI 开始行动…");
+    } catch (error) {
+      await recoverAction(error);
+    } finally {
+      setBusy(false);
+    }
+  };
 }
 startGame();
