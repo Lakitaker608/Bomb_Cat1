@@ -494,20 +494,43 @@ document.getElementById('confirmReinsertBtn').onclick = async () => {
 };
   
 async function handleDraw() {
-    if (drawPayload.exploded) {  // 炸弹爆炸
-        triggerEffect('explode');
-        setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
-    } else if (drawPayload.need_reinsert) { // 抽到炸弹需要放回
-        showReinsertModal(game.deck); // 这里负责把弹窗显示出来
-        setStatus("拆弹成功，请选择炸弹放回的位置。");
-    } else {
-        if (game.turn === "player" && game.playerAlive) {
-            triggerEffect('attack_received');
-            setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
+    try {
+        // 假设这里是你获取抽牌结果的 API 请求（根据你实际情况保留原有的请求代码）
+        // const drawPayload = await api('/games/xxx/draw', ...);
+        // hydrateGame(drawPayload.game);
+
+        if (drawPayload.exploded) {
+            // 炸弹爆炸
+            triggerEffect('explode');
+            setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
+        } else if (drawPayload.need_reinsert) {
+            // 抽到炸弹需要放回
+            showReinsertModal(game.deck); // 弹出选择位置的弹窗
+            setStatus("拆弹成功，请选择炸弹放回的位置。");
         } else {
-            setStatus(`你抽取了：${names}，回合结束。`);
+            // 正常抽牌
+            if (game.turn === "player" && game.playerAlive) {
+                triggerEffect('attack_received');
+                setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
+            } else {
+                // 正常回合结束，推进到下一回合
+                setStatus(`你抽取了：${names}，回合结束。`);
+                // 加上 await，确保 AI 能正常走完
+                await startGame(); 
+            }
         }
-        await startGame(); // 继续下一回合
+    } catch (error) {
+        console.error("抽牌过程出错:", error);
     }
-}
-window.addEventListener('DOMContentLoaded', () => {startGame();});
+} 
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        console.log("页面加载完成，正在初始化游戏...");
+        
+        // 启动游戏
+        await startGame(); 
+        
+    } catch (error) {
+        console.error("游戏初始化失败:", error);
+    }
+});
