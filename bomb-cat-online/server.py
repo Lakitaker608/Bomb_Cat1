@@ -309,21 +309,20 @@ def draw_card(game_id: str):
     if not session or session.game_over: return fail("牌局不可用", 400)
     if not session.current_seat.is_human: return fail("不是你的回合", 409)
     if session.drawn_this_turn: return fail("本回合已抽过牌", 409)
+    if not session.deck: return fail("牌库已空", 409)
     
-    card = session.deck.pop(0) # 真正的抽牌
+    card = session.deck.pop(0) 
     session.drawn_this_turn = True
     exploded = False
+    need_reinsert = False
     defused = False
 
     if card == "exploding_kitten":
         if "defuse" in session.human.hand:
             session.human.hand.remove("defuse")
-            session.human.hand.append(card) # 获得炸弹猫（可用于后续打出或保留）
             defused = True
-            add_log(session, "你抽到了炸弹猫！但你使用了【拆弹】。")
-            
-            insert_pos = random.randint(1, len(session.deck)) if session.deck else 0
-            session.deck.insert(insert_pos, card)
+            need_reinsert = True
+            add_log(session, "你抽到了炸弹猫！使用了【拆弹】，请选择炸弹放回的位置。")
         else:
             exploded = True
             session.human.alive = False
@@ -332,15 +331,16 @@ def draw_card(game_id: str):
     else:
         session.human.hand.append(card)
         add_log(session, f"你抽取了 {CARD_LIBRARY[card]['name']}。")
+        run_until_human(session)
 
     return jsonify({
         "ok": True, 
         "drawnCards": [card], 
         "exploded": exploded, 
         "defused": defused, 
+        "need_reinsert": need_reinsert, # 告诉前端是否要弹窗选位置
         "game": session.public_state()
     })
-
 
 @app.post("/api/games/<game_id>/play")
 def play_card(game_id: str):
@@ -399,16 +399,26 @@ def play_card(game_id: str):
         "peek": peek_cards # 将看到的牌发给前端
     })
 
-@app.post("/api/games/<game_id>/end-turn")
-def end_turn(game_id: str):
-    session = get_session(game_id)
-    if not session:
-        return fail("牌局不存在或已失效。", 404)
-    if not session.current_seat.is_human:
-        return fail("当前不是你的回合。", 409)
-    session.drawn_this_turn = False
-    run_until_human(session)
-    return jsonify({"ok": True, "game": session.public_state()})
+async function playSelectedCard() {
+  if (!canAct() || !game.selectedCard) return;
+  try {
+    setBusy(true);
+    // 只出牌，不触发 AI
+    const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
+    
+    // 如果是预知未来，弹窗看牌
+    if (played.peek && played.peek.length > 0) {
+      showPeekModal(played.peek);
+    }
+    
+    hydrateGame(played.game);
+    setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
+  } catch (error) { 
+    await recoverAction(error); 
+  } finally { 
+    setBusy(false); 
+  }
+}
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
