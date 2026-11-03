@@ -274,19 +274,23 @@ async function drawCard() {
   try {
     setBusy(true);
     const payload = await api(`/games/${game.gameId}/draw`, { method: "POST" });
+    game.drewThisTurn = true;
     hydrateGame(payload.game);
     
-    // 【修改这里】：判断是否抽到炸弹并给予准确反馈
+    const drawn = payload.drawnCards || [];
+    const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
+    
+    // 🌟 特效反馈逻辑
     if (payload.exploded) {
-        if (payload.defused) {
-            setStatus("你抽到了炸弹猫，已使用拆弹成功化解，炸弹已秘密放回牌堆。");
-        } else {
-            setStatus("你抽到了炸弹猫且没有拆弹，被淘汰了！");
-        }
+      triggerEffect('explode');
+      setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
+    } else if (payload.defused) {
+      triggerEffect('defuse');
+      setStatus("你抽到了炸弹猫，已使用拆弹成功化解。", true);
+    } else if (drawn.includes('attack')) {
+      triggerEffect('attack_received'); // 抽到攻击牌等
     } else {
-        const drawn = payload.drawnCards || [];
-        const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
-        setStatus(`你抽取了 1 张牌${names ? `：${names}` : ""}，回合已结束。`);
+      setStatus(`你抽取了：${names}，回合结束。`);
     }
   } catch (error) { 
     await recoverAction(error); 
@@ -365,4 +369,19 @@ document.addEventListener("keydown", (event) => {
     drawCard();
   }
 });
+function triggerEffect(effectType) {
+  const body = document.body;
+  body.classList.remove('screen-shake', 'flash-red', 'pulse-attack');
+  void body.offsetWidth; // 强制重绘以重启动画
+
+  if (effectType === 'explode') {
+    body.classList.add('screen-shake', 'flash-red');
+    // 播放音效（如果后续需要）
+  } else if (effectType === 'defuse') {
+    body.classList.add('screen-shake');
+    setTimeout(() => setStatus("拆弹成功！"), 300);
+  } else if (effectType === 'attack_received') {
+    body.classList.add('pulse-attack');
+  }
+}
 startGame();
