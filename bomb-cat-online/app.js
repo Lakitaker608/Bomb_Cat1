@@ -1,4 +1,3 @@
-/* Presentation layer only. The existing game API remains the source of truth. */
 const CARD_LIBRARY = {
   defuse: { name: "拆弹", english: "Defuse", icon: "shield", className: "type-defuse", description: "抵消炸弹猫", category: "防御牌" },
   skip: { name: "跳过", english: "Skip", icon: "skip", className: "type-skip", description: "结束本回合", category: "行动牌" },
@@ -68,8 +67,8 @@ function hydrateGame(state) {
   game.playerAlive = state.playerAlive !== false;
   game.winnerId = state.winnerId || null;
   game.canDraw = typeof state.canDraw === "boolean" ? state.canDraw : !game.drewThisTurn;
-  // Older backends always draw four; newer ones return the exact next draw size.
-  game.drawCountNext = state.drawCountNext ?? 4;
+  // 抽牌即换手，一次只抽 1 张
+  game.drawCountNext = 1;
   game.bombsRemaining = state.bombsRemaining ?? null;
   game.selectedCard = null;
   game.selectedIndex = null;
@@ -219,9 +218,9 @@ function syncControls() {
   $("#drawButton").disabled = !drawAllowed;
   $("#deckButton").disabled = !drawAllowed;
   $("#endButton").disabled = !active || game.hand.length === 0;
-  $("#drawButton span").textContent = game.drawCountNext === 4 ? "抽取四张" : `抽取 ${game.drawCountNext} 张`;
-  $(".deck-label").textContent = `抽取 ${game.drawCountNext} 张`;
-  $("#deckButton").setAttribute("aria-label", `从牌库抽取 ${game.drawCountNext} 张牌`);
+  $("#drawButton span").textContent = "抽取 1 张";
+  $(".deck-label").textContent = `抽取 1 张`;
+  $("#deckButton").setAttribute("aria-label", `从牌库抽取 1 张牌`);
   $("#endButton span").textContent = game.selectedCard ? "出牌并结束" : "结束回合";
   handElement.querySelectorAll(".hand-card").forEach((node) => { node.disabled = !active || !CARD_LIBRARY[node.dataset.cardId] || node.dataset.cardId === "exploding_kitten"; });
   $(".player-zone").setAttribute("aria-busy", String(game.busy));
@@ -248,7 +247,7 @@ function syncControls() {
   } else {
     $("#turnPill").textContent = "你的回合";
     $("#actionTitle").textContent = game.hand.length ? "轮到你了，谨慎出牌" : "先领取你的手牌";
-    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw ? "本回合已抽牌，可选牌或结束回合。" : `可抽取 ${game.drawCountNext} 张牌${game.hand.length ? "，或选择一张手牌使用。" : "，开始对局。"}`;
+    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw ? "本回合已抽牌，可选牌或结束回合。" : `可抽取 1 张牌${game.hand.length ? "，或选择一张手牌使用。" : "，开始对局。"}`;
   }
 }
 
@@ -275,12 +274,25 @@ async function drawCard() {
   try {
     setBusy(true);
     const payload = await api(`/games/${game.gameId}/draw`, { method: "POST" });
-    game.drewThisTurn = true;
     hydrateGame(payload.game);
-    const drawn = payload.drawnCards || (payload.drawnCard ? [payload.drawnCard] : []);
-    const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
-    setStatus(payload.exploded ? "你抽到了炸弹猫且没有拆弹，本局已结束。" : payload.defused ? "你抽到了炸弹猫，已使用拆弹成功化解。" : `你抽取了 ${drawn.length} 张牌${names ? `：${names}` : ""}。可以选牌或结束回合。`);
-  } catch (error) { await recoverAction(error); } finally { setBusy(false); }
+    
+    // 【修改这里】：判断是否抽到炸弹并给予准确反馈
+    if (payload.exploded) {
+        if (payload.defused) {
+            setStatus("你抽到了炸弹猫，已使用拆弹成功化解，炸弹已秘密放回牌堆。");
+        } else {
+            setStatus("你抽到了炸弹猫且没有拆弹，被淘汰了！");
+        }
+    } else {
+        const drawn = payload.drawnCards || [];
+        const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
+        setStatus(`你抽取了 1 张牌${names ? `：${names}` : ""}，回合已结束。`);
+    }
+  } catch (error) { 
+    await recoverAction(error); 
+  } finally { 
+    setBusy(false); 
+  }
 }
 
 async function endTurn() {
@@ -306,7 +318,7 @@ async function startGame() {
   try {
     const payload = await api("/games", { method: "POST" });
     hydrateGame(payload.game);
-    setStatus(`五人牌局已就绪。点击抽牌堆，一次领取 ${game.drawCountNext} 张手牌。`);
+    setStatus(`五人牌局已就绪。点击抽牌堆，一次领取 1 张手牌。`);
   } catch (error) {
     $("#connectionBadge").className = "connection-badge is-error";
     $("#connectionBadge span").textContent = "未连接服务";
