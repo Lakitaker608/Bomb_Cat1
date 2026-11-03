@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import math
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -55,9 +56,12 @@ class GameSession:
     game_id: str
     deck: list[str] = field(default_factory=list) # 现在是真实的卡牌列表
     seats: list[Seat] = field(default_factory=list)
-    discard: str = "attack"
+    discard: str = ""
     turn_index: int = 0
     drawn_this_turn: bool = False
+    extra_turns: int t = 0
+    game_over: bool = False
+    winner_id: str | None = None
     logs: list[str] = field(default_factory=lambda: ["五人制对局开始！"])
 
     @property
@@ -83,11 +87,11 @@ class GameSession:
             "canDraw": self.current_seat.is_human and not self.drawn_this_turn and len(self.deck) > 0,
             "drawnThisTurn": self.drawn_this_turn,
             "drawCountNext": 1, # 强制前端显示抽 1 张
-            "bombsRemaining": sum(1 for c in self.deck if c == "exploding_kitten"),
-            "gameOver": not self.human.alive or alive_count <= 1,
+            "bombsRemaining": bombs,
+            "gameOver": self.game_over,
             "playerAlive": self.human.alive,
-            "winnerId": "player" if self.human.alive and alive_count == 1 else None,
-            "logs": self.logs[-30:],
+            "winnerId": self.winner_id,
+            "logs": self.logs[-30:]
         }
 
 SESSIONS: dict[str, GameSession] = {}
@@ -136,79 +140,85 @@ def remote_agent_move(session: GameSession, seat: Seat) -> dict[str, str] | None
     return move
 
 def next_alive_turn(session: GameSession) -> None:
-    current = session.current_seat
-    
-    # 如果当前玩家身上还有被攻击积攒的额外回合
-    if current.extra_turns > 0:
-        current.extra_turns -= 1
+    # 如果存在额外回合（被攻击），则当前玩家不换，继续行动
+    if session.extra_turns > 0:
+        session.extra_turns -= 1
         session.drawn_this_turn = False
-        add_log(session, f"{current.name} 受到攻击，必须再进行一个回合！")
         return
-    
-    # 正常切换到下一个存活玩家
+        
+    # 正常轮转下一个存活玩家
     for _ in range(len(session.seats)):
         session.turn_index = (session.turn_index + 1) % len(session.seats)
         if session.current_seat.alive:
             session.drawn_this_turn = False
             return
             
-def apply_bot_turn(session: GameSession, seat: Seat) -> None:
-    # 40% 概率打出一张功能牌
-    if seat.hand and random.random() > 0.6:
-        playable = [c for c in seat.hand if c in ("attack", "skip", "favor", "see", "shuffle")]
-        if playable:
-            card_id = random.choice(playable)
-            seat.hand.remove(card_id)
-            session.discard = card_id
-            
-            if card_id == "attack":
-                carry_over = seat.extra_turns
-                seat.extra_turns = 0
-                
-                target_index = (session.turn_index + 1) % len(session.seats)
-                while not session.seats[target_index].alive:
-                    target_index = (target_index + 1) % len(session.seats)
-                target = session.seats[target_index]
-                target.extra_turns += (1 + carry_over)
-                
-                session.drawn_this_turn = True
-                add_log(session, f"{seat.name} 打出了 攻击！{target.name} 必须连续行动 {2+carry_over} 回合。")
-                return
-                
-            elif card_id == "skip":
-                seat.extra_turns = 0
-                session.drawn_this_turn = True
-                add_log(session, f"{seat.name} 打出了 跳过，结束回合。")
-                return
-            elif card_id == "favor":
-                victims = [s for s in session.seats if s.alive and s.seat_id != seat.seat_id and s.hand]
-                if victims:
-                    victim = random.choice(victims)
-                    stolen = victim.hand.pop(random.randint(0, len(victim.hand)-1))
-                    seat.hand.append(stolen)
-                    add_log(session, f"{seat.name} 对 {victim.name} 使用了 索要，抢走了一张牌。")
-            elif card_id == "see":
-                add_log(session, f"{seat.name} 使用了 预知未来。")
-            elif card_id == "shuffle":
-                random.shuffle(session.deck)
-                add_log(session, f"{seat.name} 洗了牌库。")
-            return # 出牌后结束当前函数，在下一次 while 循环中继续行动
-
-    # 摸牌
-    if session.deck:
-        drawn = session.deck.pop(0)
-        if drawn == "exploding_kitten":
-            if "defuse" in seat.hand:
-                seat.hand.remove("defuse")
-                session.deck.insert(random.randint(0, len(session.deck)), drawn)
-                add_log(session, f"{seat.name} 抽到炸弹猫，使用拆弹卡化解。")
-            else:
-                seat.alive = False
-                add_log(session, f"{seat.name} 抽到炸弹猫，被淘汰了！")
+def check_win_condition(session: GameSession) -> None:
+    """检查游戏是否只剩一名存活玩家"""
+    alive_seats = [seat for seat in session.seats if seat.alive]
+    if len(alive_seats) <= 1:
+        session.game_over = True
+        if alive_seats:
+            session.winner_id = alive_seats[0].seat_id
+            add_log(session, f"🏆 游戏结束！{alive_seats[0].name} 获得了最终胜利！")
         else:
-            seat.hand.append(drawn)
+            add_log(session, "💀 游戏结束！所有玩家同归于尽，平局。")
+
+
+def apply_bot_turn(session: GameSession, seat: Seat) -> None:
+    if not seat.alive or session.game_over:
+        return
+
+    move = remote_agent_move(session, seat)
+    
+    if not move:
+        if "attack" in seat.hand and random.random() > 0.7:
+            move = {"action": "play", "cardId": "attack"}
+        elif "skip" in seat.hand and random.random() > 0.8:
+            move = {"action": "play", "cardId": "skip"}
+        else:
+            move = {"action": "draw"}
+
+    card_id = move.get("cardId")
+
+    # 1. AI 出牌逻辑
+    if move.get("action") == "play" and card_id in seat.hand and card_id in CARD_LIBRARY:
+        seat.hand.remove(card_id)
+        session.discard = card_id
+        add_log(session, f"{seat.name} 打出 {CARD_LIBRARY[card_id]['name']}。")
+        
+        if card_id == "attack":
+            session.extra_turns += 1
+            add_log(session, f"{seat.name} 的攻击生效，下一个玩家将承受额外回合！")
+        elif card_id == "skip":
+            add_log(session, f"{seat.name} 使用了跳过，结束回合。")
+            return  # 跳过回合，不抽牌直接返回
+            
+    elif session.deck:
+        card = session.deck.pop(0)
+        if card == "exploding_kitten":
+            if "defuse" in seat.hand:
+                # AI 成功拆弹
+                seat.hand.remove("defuse")
+                add_log(session, f"{seat.name} 抽到了炸弹猫，但使用了【拆弹】成功化解。")
+                # 炸弹放回牌堆（不能放最顶端）
+                insert_pos = random.randint(1, len(session.deck)) if len(session.deck) > 1 else 0
+                session.deck.insert(insert_pos, card)
+            else:
+                # AI 被炸死
+                seat.alive = False
+                add_log(session, f"💥 {seat.name} 抽到了炸弹猫且没有拆弹，被炸死淘汰！")
+                # 将死亡玩家的手牌收回牌堆并打乱
+                session.deck.extend(seat.hand)
+                seat.hand.clear()
+                random.shuffle(session.deck)
+                check_win_condition(session)
+        else:
+            # 抽到普通牌
+            seat.hand.append(card)
             add_log(session, f"{seat.name} 摸了一张牌。")
-        session.drawn_this_turn = True
+    else:
+        add_log(session, f"牌堆已空，{seat.name} 无法摸牌。")
 
 def run_until_human(session: GameSession) -> None:
     next_alive_turn(session)
@@ -230,32 +240,21 @@ def static_files(filename: str):
 @app.post("/api/games")
 def create_game():
     seats = [Seat("player", "你", is_human=True)] + [Seat(f"bot-{index + 1}", name) for index, name in enumerate(BOT_NAMES)]
-    
-    # 1. 初始化基础牌库（不含炸弹）
-    base_deck = []
-    for _ in range(24): # 普通牌
-        base_deck.append(random.choice(NORMAL_DRAW_POOL))
-    for _ in range(15): # 拆弹卡
-        base_deck.append("defuse")
-    random.shuffle(base_deck)
-    
-    # 2. 开局发牌：每人发 4 张手牌 + 1 张拆弹卡
-    for seat in seats:
-        seat.hand.append("defuse")
+    session = Gamesession(game_id=uuid.uuid4().hex,seats=seats)
+    session.deck = build_deck(lens(seats))
+
+# 发初始手牌（每人4张普通牌 + 1张拆弹）
+    for seat in session.seats:
         for _ in range(4):
-            if base_deck:
-                seat.hand.append(base_deck.pop())
-                
-    # 3. 根据规则（人数 - 1），将炸弹猫洗入牌库
-    for _ in range(len(seats) - 1):
-        base_deck.append("exploding_kitten")
-    random.shuffle(base_deck)
-    
-    session = GameSession(game_id=uuid.uuid4().hex, seats=seats, deck=base_deck)
-    session.logs.append("游戏开始，已为每人发放 4 张手牌和 1 张拆弹卡。")
+            if session.deck: seat.hand.append(session.deck.pop(0))
+        seat.hand.append("defuse") # 强行发一张拆弹
+        # 从牌堆移除一张拆弹以平衡
+        if "defuse" in session.deck: session.deck.remove("defuse")
+        
     with SESSIONS_LOCK:
         SESSIONS[session.game_id] = session
     return jsonify({"ok": True, "game": session.public_state()}), 201
+
 
 @app.get("/api/games/<game_id>")
 def read_game(game_id: str):
@@ -264,121 +263,78 @@ def read_game(game_id: str):
         return fail("牌局不存在或已失效。", 404)
     return jsonify({"ok": True, "game": session.public_state()})
 
+
 @app.post("/api/games/<game_id>/draw")
 def draw_card(game_id: str):
     session = get_session(game_id)
-    if not session:
-        return fail("牌局不存在或已失效。", 404)
-    if not session.current_seat.is_human:
-        return fail("当前不是你的回合。", 409)
-    if session.drawn_this_turn:
-        return fail("本回合已经抽过牌了，请结束回合。", 409)
-    if not session.deck:
-        return fail("牌库已空，本局结束。", 409)
-        
-    card_id = session.deck.pop(0)
+    if not session or session.game_over: return fail("牌局不可用", 400)
+    if not session.current_seat.is_human: return fail("不是你的回合", 409)
+    if session.drawn_this_turn: return fail("本回合已抽过牌", 409)
+    
+    card = session.deck.pop(0) # 真正的抽牌
     session.drawn_this_turn = True
     exploded = False
     defused = False
-    
-    if card_id == "exploding_kitten":
-        exploded = True
+
+    if card == "exploding_kitten":
         if "defuse" in session.human.hand:
-            defused = True
             session.human.hand.remove("defuse")
-            # 简单化：随机插回牌堆
-            session.deck.insert(random.randint(0, len(session.deck)), card_id)
-            add_log(session, f"你抽到了炸弹猫！使用拆弹卡化解，并将其秘密放回牌库。")
+            session.human.hand.append(card) # 获得炸弹猫（可用于后续打出或保留）
+            defused = True
+            add_log(session, "你抽到了炸弹猫！但你使用了【拆弹】。")
+            
+            insert_pos = random.randint(1, len(session.deck)) if session.deck else 0
+            session.deck.insert(insert_pos, card)
         else:
+            exploded = True
             session.human.alive = False
-            add_log(session, f"你抽到了炸弹猫，没有拆弹卡，被淘汰了！")
+            session.game_over = True
+            add_log(session, "你抽到了炸弹猫且没有拆弹，被淘汰！")
     else:
-        session.human.hand.append(card_id)
-        add_log(session, f"你抽到了 {CARD_LIBRARY[card_id]['name']}。")
-        
-    if not session.human.alive:
-        run_until_human(session)
-        
+        session.human.hand.append(card)
+        add_log(session, f"你抽取了 {CARD_LIBRARY[card]['name']}。")
+
     return jsonify({
         "ok": True, 
-        "drawnCards": [card_id] if card_id != "exploding_kitten" else [],
-        "exploded": exploded,
-        "defused": defused,
+        "drawnCards": [card], 
+        "exploded": exploded, 
+        "defused": defused, 
         "game": session.public_state()
     })
+
 
 @app.post("/api/games/<game_id>/play")
 def play_card(game_id: str):
     session = get_session(game_id)
     if not session:
         return fail("牌局不存在或已失效。", 404)
+    if session.game_over:
+        return fail("本局游戏已结束。", 409)
+        
     card_id = (request.get_json(silent=True) or {}).get("cardId")
     if not session.current_seat.is_human:
         return fail("当前不是你的回合。", 409)
     if card_id not in CARD_LIBRARY or card_id not in session.human.hand:
         return fail("该卡牌不在你的手牌中。", 422)
         
+    
     session.human.hand.remove(card_id)
     session.discard = card_id
-    extra_data = {}
-    log_msg = f"你打出 {CARD_LIBRARY[card_id]['name']}。"
+    add_log(session, f"你打出 {CARD_LIBRARY[card_id]['name']}。")
+    
+    
+    if card_id == "attack":
+        session.extra_turns += 1
+        add_log(session, "攻击生效：下一个对手将承受额外回合！")
+    elif card_id == "skip":
+        # 跳过牌：直接视为本回合已操作完毕，且不能抽牌
+        session.drawn_this_turn = True
+        add_log(session, "跳过生效：直接结束本回合。")
+    elif card_id == "exploding_kitten":
+        
+        add_log(session, "你打出了炸弹猫！")
 
-    if card_id == "skip":
-        session.drawn_this_turn = True # 强行结束回合，不能再抽牌
-        session.human.extra_turns = 0   # 跳过牌会直接作废自己身上的攻击惩罚
-        log_msg += " 本回合结束，无需抽牌。"
-        
-    elif card_id == "attack":
-        session.drawn_this_turn = True # 强行结束回合
-        carry_over = session.human.extra_turns # 把当前自己受到的攻击也转移出去
-        session.human.extra_turns = 0
-        
-        # 找到下一个存活的玩家
-        target_index = (session.turn_index + 1) % len(session.seats)
-        while not session.seats[target_index].alive:
-            target_index = (target_index + 1) % len(session.seats)
-        target = session.seats[target_index]
-        
-        # 被攻击者获得 1个基础额外回合 + 转移过来的惩罚
-        target.extra_turns += (1 + carry_over)
-        log_msg += f" {target.name} 必须连续行动 {2 + carry_over} 回合！"
-        
-    elif card_id == "shuffle":
-        random.shuffle(session.deck)
-        log_msg += " 牌库已被重新洗匀。"
-        
-    elif card_id == "see":
-        peeked = session.deck[:3]
-        extra_data["peeked"] = [CARD_LIBRARY[c]["name"] for c in peeked]
-        log_msg += f" 你看到了接下来的牌：{', '.join(extra_data['peeked'])}。"
-
-    elif card_id == "favor":
-        victims = [s for s in session.seats if s.alive and not s.is_human and s.hand]
-        if victims:
-            victim = random.choice(victims)
-            stolen = victim.hand.pop(random.randint(0, len(victim.hand)-1))
-            session.human.hand.append(stolen)
-            log_msg += f" 从 {victim.name} 手中索要到了 {CARD_LIBRARY[stolen]['name']}。"
-        else:
-            log_msg += " 但其他玩家没有手牌。"
-
-    # 猫咪卡连击
-    elif card_id in ("taco", "rainbow", "potato", "braid_uncle"):
-        if card_id in session.human.hand:
-            session.human.hand.remove(card_id)
-            victims = [s for s in session.seats if s.alive and not s.is_human and s.hand]
-            if victims:
-                victim = random.choice(victims)
-                stolen = victim.hand.pop(random.randint(0, len(victim.hand)-1))
-                session.human.hand.append(stolen)
-                log_msg += f" 触发双猫连击！从 {victim.name} 手中随机抢走了一张牌。"
-            else:
-                log_msg += " 但其他玩家没有手牌可以抢。"
-        else:
-            log_msg += " （单张猫咪牌没有效果）。"
-
-    add_log(session, log_msg)
-    return jsonify({"ok": True, "extra": extra_data, "game": session.public_state()})
+    return jsonify({"ok": True, "game": session.public_state()})
 
 
 @app.post("/api/games/<game_id>/end-turn")
