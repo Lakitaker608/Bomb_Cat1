@@ -247,10 +247,8 @@ def run_until_human(session: GameSession) -> None:
     next_alive_turn(session)
     while not session.current_seat.is_human and sum(1 for s in session.seats if s.alive) > 1:
         apply_bot_turn(session, session.current_seat)
-        # 如果 AI 摸牌了或者出攻击/跳过牌强制结束了回合，则尝试流转
-        if session.drawn_this_turn:
-            next_alive_turn(session)
-        # 如果 AI 只是用了索要或看牌，没有结束回合，循环会继续，让 AI 再动一次
+        # (如果是攻击导致的额外回合，next_alive_turn 内部会根据 extra_turns 处理)
+        next_alive_turn(session) 
 
 @app.get("/")
 def index():
