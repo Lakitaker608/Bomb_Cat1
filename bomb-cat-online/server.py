@@ -154,7 +154,7 @@ def next_alive_turn(session: GameSession) -> None:
             
 def apply_bot_turn(session: GameSession, seat: Seat) -> None:
     if seat.hand and random.random() > 0.6:
-        playable = [c for c in seat.hand if in ("attack","skip","favor","see","shuffle")]
+        playable = [c for c in seat.hand if c in ("attack","skip","favor","see","shuffle")]
         if playable:
             card_id == random.choice(playable)
             seat.hand.remove(card_id)
