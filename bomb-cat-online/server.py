@@ -241,7 +241,7 @@ def static_files(filename: str):
 def create_game():
     seats = [Seat("player", "你", is_human=True)] + [Seat(f"bot-{index + 1}", name) for index, name in enumerate(BOT_NAMES)]
     session = Gamesession(game_id=uuid.uuid4().hex,seats=seats)
-    session.deck = build_deck(lens(seats))
+    session.deck = build_deck(len(seats))
 
 # 发初始手牌（每人4张普通牌 + 1张拆弹）
     for seat in session.seats:
