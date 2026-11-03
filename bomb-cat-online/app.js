@@ -471,4 +471,18 @@ function showReinsertModal(deckSize) {
     }
   };
 }
+if (payload.exploded) {
+  triggerEffect('explode');
+  setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
+} else if (payload.need_reinsert) {
+  showReinsertModal(game.deck); 
+  setStatus("拆弹成功，请选择炸弹放回的位置。");
+} else {
+  if (game.turn === "player" && game.playerAlive) {
+    triggerEffect('attack_received'); // 触发红色脉冲特效
+    setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
+  } else {
+    setStatus(`你抽取了：${names}，回合结束。`);
+  }
+}
 startGame();
