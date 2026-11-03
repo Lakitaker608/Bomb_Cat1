@@ -197,6 +197,44 @@ h1 { display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-top:
 .modal-tip { font-size: 10px; line-height: 2; color: #808b6c; padding: 14px 0; overflow-wrap: anywhere; }
 .modal-tip code { color: #596a44; }
 .modal-save { width: 100%; }
+/* 全屏震动 */
+.screen-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+@keyframes shake {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(4px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+  40%, 60% { transform: translate3d(8px, 0, 0); }
+}
+
+/* 炸弹红屏闪烁 */
+.flash-red {
+  animation: redFlash 1s ease-out;
+}
+@keyframes redFlash {
+  0% { box-shadow: inset 0 0 0 100vw rgba(255, 0, 0, 0); }
+  20% { box-shadow: inset 0 0 0 100vw rgba(255, 0, 0, 0.6); }
+  100% { box-shadow: inset 0 0 0 100vw rgba(255, 0, 0, 0); }
+}
+
+/* 被攻击的红色暗角脉冲 */
+.pulse-attack {
+  animation: pulseAttack 1.5s ease-in-out 2;
+}
+@keyframes pulseAttack {
+  0% { box-shadow: inset 0 0 0 0 rgba(255, 50, 50, 0); }
+  50% { box-shadow: inset 0 0 80px 20px rgba(255, 50, 50, 0.7); }
+  100% { box-shadow: inset 0 0 0 0 rgba(255, 50, 50, 0); }
+}
+
+/* 强化弃牌区的高亮展示 (打出攻击或炸弹时) */
+.discard.playing-card {
+  transition: transform 0.3s ease;
+}
+.discard.playing-card:hover {
+  transform: scale(1.1);
+}
 /* 矮屏紧凑档：让五人对战室在一屏内看全（信息层次不变，只收紧纵向留白与插画尺寸）。 */
 @media (max-height: 930px) and (min-width: 901px) {
   .game-shell { padding: 0 26px; }
