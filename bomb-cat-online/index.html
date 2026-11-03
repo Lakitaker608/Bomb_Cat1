@@ -77,5 +77,16 @@
     window.BOMB_CAT_API_BASE = "https://bomb-cat1-1.onrender.com";
   </script>
   <script src="app.js"></script>
+  <!-- 预知未来弹窗 -->
+<div id="peekModal" class="modal-overlay" hidden>
+  <div class="modal-card-content">
+    <h2>预知未来</h2>
+    <p>这是牌堆顶部的牌（从左到右依次抽取）：</p >
+    <div id="peekCardsContainer" class="peek-container">
+      <!-- 动态生成卡牌 -->
+    </div>
+    <button id="closePeekBtn" class="primary-btn" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">记住了，继续</button>
+  </div>
+</div>
 </body>
 </html>
