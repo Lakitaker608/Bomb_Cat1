@@ -294,21 +294,53 @@ def static_files(filename: str):
 @app.post("/api/games")
 def create_game():
     seats = [Seat("player", "你", is_human=True)] + [Seat(f"bot-{index + 1}", name) for index, name in enumerate(BOT_NAMES)]
-    session = GameSession(game_id=uuid.uuid4().hex,seats=seats)
-    session.deck = build_deck(len(seats))
+    session = GameSession(game_id=uuid.uuid4().hex, seats=seats)
 
-# 发初始手牌（每人4张普通牌 + 1张拆弹）
+    # 1. 先生成一份纯普通牌的牌库（绝对不含炸弹）
+    deck = []
+    for _ in range(6): deck.extend(["skip", "attack", "see", "shuffle"])
+    for _ in range(3): deck.extend(["favor"])
+    for _ in range(4): deck.extend(["taco", "rainbow", "potato", "braid_uncle"])
+    
+    # 彻底打乱普通牌
+    random.shuffle(deck)
+
+    # 2. 开始发牌：给每人发 4 张普通牌
     for seat in session.seats:
         for _ in range(4):
-            if session.deck: seat.hand.append(session.deck.pop(0))
-        seat.hand.append("defuse") # 强行发一张拆弹
-        # 从牌堆移除一张拆弹以平衡
-        if "defuse" in session.deck: session.deck.remove("defuse")
-        
+            if deck: 
+                seat.hand.append(deck.pop(0))
+                
+    # 3. 给每人强行发 1 张拆弹（放入手牌，防止起手没拆弹直接死）
+    for seat in session.seats:
+        seat.hand.append("defuse")
+
+    # 4. 往剩余牌库里补充多余的拆弹（5人局总共发5张，额外留1张在牌库）
+    extra_defuse_count = 1
+    deck.extend(["defuse"] * extra_defuse_count)
+
+    # 5. 现在手牌发完了，开始把炸弹塞进剩余牌库
+    bombs = len(session.seats) - 1 # 5人局塞4个炸弹
+    if bombs > 0 and len(deck) > 0:
+        # 均匀散布炸弹算法
+        segment_size = len(deck) // bombs
+        for i in range(bombs):
+            # 随机选择在当前区段插入
+            min_pos = i * segment_size
+            max_pos = (i + 1) * segment_size - 1
+            if min_pos > len(deck): min_pos = len(deck)
+            if max_pos > len(deck): max_pos = len(deck)
+            
+            insert_pos = random.randint(min_pos, max_pos) if min_pos <= max_pos else len(deck)
+            deck.insert(insert_pos, "exploding_kitten")
+
+    # 6. 最终洗牌，确保炸弹位置绝对随机
+    random.shuffle(deck)
+    session.deck = deck
+
     with SESSIONS_LOCK:
         SESSIONS[session.game_id] = session
     return jsonify({"ok": True, "game": session.public_state()}), 201
-
 
 @app.get("/api/games/<game_id>")
 def read_game(game_id: str):
