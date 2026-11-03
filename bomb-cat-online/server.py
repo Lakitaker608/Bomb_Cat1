@@ -153,60 +153,62 @@ def next_alive_turn(session: GameSession) -> None:
             return
             
 def apply_bot_turn(session: GameSession, seat: Seat) -> None:
+    # 40% 概率打出一张功能牌
     if seat.hand and random.random() > 0.6:
-        playable = [c for c in seat.hand if c in ("attack","skip","favor","see","shuffle")]
+        playable = [c for c in seat.hand if c in ("attack", "skip", "favor", "see", "shuffle")]
         if playable:
-            card_id == random.choice(playable)
+            card_id = random.choice(playable)
             seat.hand.remove(card_id)
-            session_discard = card_id
+            session.discard = card_id
+            
             if card_id == "attack":
-                    carry_over = seat.extra_turns
-                    seat.extra_turns = 0
-                    
-                    target_index = (session.turn_index + 1) % len(session.seats)
-                    while not session.seats[target_index].alive:
-                        target_index = (target_index + 1) % len(session.seats)
-                    target = session.seats[target_index]
-                    target.extra_turns += (1 + carry_over)
-                    
-                    session.drawn_this_turn = True
-                    add_log(session, f"{seat.name} 打出了 攻击！{target.name} 必须连续行动 {2+carry_over} 回合。")
-                    return
-                    
-                elif card_id == "skip":
-                    seat.extra_turns = 0
-                    session.drawn_this_turn = True
-                    add_log(session, f"{seat.name} 打出了 跳过，结束回合。")
-                    return
-                elif card_id == "favor":
-                    victims = [s for s in session.seats if s.alive and s.seat_id != seat.seat_id and s.hand]
-                    if victims:
-                        victim = random.choice(victims)
-                        stolen = victim.hand.pop(random.randint(0, len(victim.hand)-1))
-                        seat.hand.append(stolen)
-                        add_log(session, f"{seat.name} 对 {victim.name} 使用了 索要，抢走了一张牌。")
-                elif card_id == "see":
-                    add_log(session, f"{seat.name} 使用了 预知未来。")
-                elif card_id == "shuffle":
-                    random.shuffle(session.deck)
-                    add_log(session, f"{seat.name} 洗了牌库。")
-                return # 出牌后结束当前函数，在下一次 while 循环中继续行动
-    
-        # 摸牌
-        if session.deck:
-            drawn = session.deck.pop(0)
-            if drawn == "exploding_kitten":
-                if "defuse" in seat.hand:
-                    seat.hand.remove("defuse")
-                    session.deck.insert(random.randint(0, len(session.deck)), drawn)
-                    add_log(session, f"{seat.name} 抽到炸弹猫，使用拆弹卡化解。")
-                else:
-                    seat.alive = False
-                    add_log(session, f"{seat.name} 抽到炸弹猫，被淘汰了！")
+                carry_over = seat.extra_turns
+                seat.extra_turns = 0
+                
+                target_index = (session.turn_index + 1) % len(session.seats)
+                while not session.seats[target_index].alive:
+                    target_index = (target_index + 1) % len(session.seats)
+                target = session.seats[target_index]
+                target.extra_turns += (1 + carry_over)
+                
+                session.drawn_this_turn = True
+                add_log(session, f"{seat.name} 打出了 攻击！{target.name} 必须连续行动 {2+carry_over} 回合。")
+                return
+                
+            elif card_id == "skip":
+                seat.extra_turns = 0
+                session.drawn_this_turn = True
+                add_log(session, f"{seat.name} 打出了 跳过，结束回合。")
+                return
+            elif card_id == "favor":
+                victims = [s for s in session.seats if s.alive and s.seat_id != seat.seat_id and s.hand]
+                if victims:
+                    victim = random.choice(victims)
+                    stolen = victim.hand.pop(random.randint(0, len(victim.hand)-1))
+                    seat.hand.append(stolen)
+                    add_log(session, f"{seat.name} 对 {victim.name} 使用了 索要，抢走了一张牌。")
+            elif card_id == "see":
+                add_log(session, f"{seat.name} 使用了 预知未来。")
+            elif card_id == "shuffle":
+                random.shuffle(session.deck)
+                add_log(session, f"{seat.name} 洗了牌库。")
+            return # 出牌后结束当前函数，在下一次 while 循环中继续行动
+
+    # 摸牌
+    if session.deck:
+        drawn = session.deck.pop(0)
+        if drawn == "exploding_kitten":
+            if "defuse" in seat.hand:
+                seat.hand.remove("defuse")
+                session.deck.insert(random.randint(0, len(session.deck)), drawn)
+                add_log(session, f"{seat.name} 抽到炸弹猫，使用拆弹卡化解。")
             else:
-                seat.hand.append(drawn)
-                add_log(session, f"{seat.name} 摸了一张牌。")
-            session.drawn_this_turn = True
+                seat.alive = False
+                add_log(session, f"{seat.name} 抽到炸弹猫，被淘汰了！")
+        else:
+            seat.hand.append(drawn)
+            add_log(session, f"{seat.name} 摸了一张牌。")
+        session.drawn_this_turn = True
 
 def run_until_human(session: GameSession) -> None:
     next_alive_turn(session)
