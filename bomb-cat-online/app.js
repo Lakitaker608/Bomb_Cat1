@@ -507,7 +507,7 @@ async function handleDraw() {
         } else {
             setStatus(`你抽取了：${names}，回合结束。`);
         }
-        startGame(); // 继续下一回合
+        await startGame(); // 继续下一回合
     }
 }
-startGame();
+window.addEventListener('DOMContentLoaded', () => {startGame();});
