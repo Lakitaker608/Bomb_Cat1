@@ -55,6 +55,9 @@ function hydrateGame(state) {
   game.connected = true;
   game.deck = state.deck;
   game.hand = Array.isArray(state.playerHand) ? state.playerHand : [];
+  game.canDraw = typeof state.canDraw === "boolean" ? state.canDraw : !game.drewThisTurn;
+  game.drewThisTurn = state.drewThisTurn === false;
+  game.bombsRemaining = state.bombsRemaining ?? null;
   game.opponents = Array.isArray(state.opponents) ? state.opponents : [];
   game.discarded = state.discard;
   game.turn = state.turn;
