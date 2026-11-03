@@ -73,6 +73,7 @@ class GameSession:
         return self.seats[self.turn_index]
 
     def public_state(self) -> dict[str, Any]:
+        bombs = sum(1 for c in self.deck if c == "exploding_kitten")
         alive_count = sum(1 for s in self.seats if s.alive)
         return {
             "gameId": self.game_id,
@@ -97,6 +98,34 @@ class GameSession:
 SESSIONS: dict[str, GameSession] = {}
 SESSIONS_LOCK = threading.Lock()
 
+def build_deck(player_count: int) -> list[str]:
+    deck = []
+    for _ in range(6): deck.extend(["skip", "attack", "see", "shuffle"])
+    for _ in range(3): deck.extend(["favor"])
+    for _ in range(4): deck.extend(["taco", "rainbow", "potato", "braid_uncle"])
+    
+    bombs = player_count - 1
+    defuse_cards = player_count + 1
+    
+    # Fisher-Yates 洗牌
+    for i in range(len(deck) - 1, 0, -1):
+        j = random.randint(0, i)
+        deck[i], deck[j] = deck[j], deck[i]
+    
+    # 均匀散布炸弹
+    segment_size = len(deck) // bombs
+    for i in range(bombs):
+        insert_pos = random.randint(i * segment_size, (i + 1) * segment_size - 1)
+        deck.insert(insert_pos, "exploding_kitten")
+        
+    deck.extend(["defuse"] * defuse_cards)
+    
+    for i in range(len(deck) - 1, 0, -1):
+        j = random.randint(0, i)
+        deck[i], deck[j] = deck[j], deck[i]
+        
+    return deck
+    
 def fail(message: str, status: int = 400):
     return jsonify({"ok": False, "error": message}), status
 
@@ -107,12 +136,6 @@ def get_session(game_id: str) -> GameSession | None:
 def add_log(session: GameSession, text: str) -> None:
     session.logs.append(f"{datetime.now().strftime('%H:%M')}|{text}")
 
-def next_alive_turn(session: GameSession) -> None:
-    for _ in range(len(session.seats)):
-        session.turn_index = (session.turn_index + 1) % len(session.seats)
-        if session.current_seat.alive:
-            session.drawn_this_turn = False
-            return
 
 def agent_payload(session: GameSession, seat: Seat) -> dict[str, Any]:
     return {
@@ -240,7 +263,7 @@ def static_files(filename: str):
 @app.post("/api/games")
 def create_game():
     seats = [Seat("player", "你", is_human=True)] + [Seat(f"bot-{index + 1}", name) for index, name in enumerate(BOT_NAMES)]
-    session = Gamesession(game_id=uuid.uuid4().hex,seats=seats)
+    session = GameSession(game_id=uuid.uuid4().hex,seats=seats)
     session.deck = build_deck(len(seats))
 
 # 发初始手牌（每人4张普通牌 + 1张拆弹）
