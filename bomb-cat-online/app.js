@@ -470,12 +470,13 @@ function showReinsertModal(deckSize) {
 
   modal.hidden = false;
 
-  // 1. 这是处理放回炸弹的按钮点击事件
-document.getElementById('confirmReinsertBtn').onclick = async () => {
-    modal.hidden = true;
+ document.getElementById('confirmReinsertBtn').onclick = async () => {
+    modal.hidden = true; // 隐藏弹窗
     try {
         setBusy(true);
         const index = parseInt(slider.value);
+        
+        // 调用后端接口，把炸弹放回去
         const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
             method: "POST",
             body: JSON.stringify({ index })
@@ -484,9 +485,10 @@ document.getElementById('confirmReinsertBtn').onclick = async () => {
         // 更新游戏状态
         hydrateGame(payload.game);
         setStatus("炸弹已放回，AI 开始行动...");
+        
         setBusy(false);
-        await startGame();
-      
+        await startGame(); 
+        
     } catch (error) {
         await recoverAction(error);
         setBusy(false);
