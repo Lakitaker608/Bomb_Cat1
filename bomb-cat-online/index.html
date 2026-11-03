@@ -88,5 +88,23 @@
     <button id="closePeekBtn" class="primary-btn" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">记住了，继续</button>
   </div>
 </div>
+  <!-- 炸弹放回弹窗 -->
+<div id="reinsertModal" class="modal-overlay" hidden>
+  <div class="modal-card-content bomb-theme">
+    <h2>💣 炸弹拆解成功</h2>
+    <p>请将炸弹猫秘密放回牌库。拖拽滑块选择位置：</p >
+    
+    <div class="slider-container">
+      <div class="slider-labels">
+        <span>最顶部 (第1张)</span>
+        <span id="bombIndexDisplay" class="index-highlight">第 5 张</span>
+        <span>最底部 (垫底)</span>
+      </div>
+      <input type="range" id="bombIndexSlider" min="0" max="20" value="5" class="bomb-slider">
+    </div>
+
+    <button id="confirmReinsertBtn" class="primary-btn danger-btn">确认放回并结束回合</button>
+  </div>
+</div>
 </body>
 </html>
