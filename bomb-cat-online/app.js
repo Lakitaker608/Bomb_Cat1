@@ -410,17 +410,10 @@ function closeSettings() {
   previouslyFocused?.focus();
 }
 $("#endButton").addEventListener("click", playSelectedCard);
-const skipDrawBtn = document.createElement("button");
-skipDrawBtn.id = "skipDrawButton";
-skipDrawBtn.className = "primary-button"; 
-skipDrawBtn.innerHTML = "<span>不抽牌并结束</span>";
-skipDrawBtn.addEventListener("click", endTurnNoDraw);
-
-if ($("#endButton") && $("#endButton").parentNode) {
-  $("#endButton").parentNode.insertBefore(skipDrawBtn, $("#endButton").nextSibling);
-}
+$("#skipDrawButton").addEventListener("click", endTurnNoDraw);
 
 $("#deckButton").addEventListener("click", drawCard);
+$("#drawButton").addEventListener("click", drawCard);
 $("#settingsButton").addEventListener("click", openSettings);
 document.querySelectorAll("[data-close-settings]").forEach((button) => button.addEventListener("click", closeSettings));
 $("#saveApiButton").addEventListener("click", closeSettings);
