@@ -129,32 +129,26 @@
     </section>
 
     <!-- 底部操作栏 -->
-    <footer class="action-bar">
-      <div class="turn-copy">
-        <span class="turn-light"></span>
-        <div>
-          <b id="actionTitle">正在连接牌局</b>
-          <span id="actionHint">请稍候，连接成功后即可开始。</span>
-        </div>
-      </div>
-      <div class="actions">
-        <!-- 抽牌按钮 -->
-        <button id="drawButton" class="button button-secondary" type="button" disabled>
-          <svg><use href="#icon-cards" /></svg>
-          <span>抽取 1 张</span>
-        </button>
-        <!-- 新增：不抽牌并结束按钮 -->
-        <button id="skipDrawButton" class="button button-secondary" type="button" disabled>
-          <svg><use href="#icon-skip" /></svg>
-          <span>不抽牌结束</span>
-        </button>
-        <!-- 出牌按钮 (原 endButton) -->
-        <button id="endButton" class="button button-primary" type="button" disabled>
-          <span>打出卡牌</span>
-          <svg><use href="#icon-arrow" /></svg>
-        </button>
-      </div>
-    </footer>
+<footer class="action-bar">
+  <div class="turn-copy">
+    <span class="turn-light"></span>
+    <div>
+      <b id="actionTitle">正在连接牌局</b>
+      <span id="actionHint">请稍候，连接成功后即可开始。</span>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="drawButton" class="button button-secondary" type="button" disabled>
+      <svg><use href="#icon-cards" /></svg>
+      <span>不出牌，直接抽牌</span>
+    </button>
+    
+    <button id="endButton" class="button button-primary" type="button" disabled>
+      <span>打出选中卡牌</span>
+      <svg><use href="#icon-arrow" /></svg>
+    </button>
+  </div>
+</footer>
 
     <div class="page-signoff"><span>EXPLODING CATS</span><span>保持冷静 · 远离炸弹</span></div>
   </main>
