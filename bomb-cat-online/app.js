@@ -11,14 +11,18 @@ const CARD_LIBRARY = {
   braid_uncle: { name: "辫子大叔", english: "Braid Uncle", icon: "cat", className: "type-braid", description: "普通猫牌 · 组合效果以服务端规则为准", category: "普通猫牌" },
   exploding_kitten: { name: "炸弹猫", english: "Exploding Cat", icon: "bomb", className: "type-exploding", description: "抽到后需要拆弹，否则被淘汰", category: "危险牌" }
 };
+
 const UNKNOWN_CARD = { name: "未知卡牌", english: "Unknown", icon: "cards", className: "type-unknown", description: "当前客户端暂不支持此卡牌", category: "卡牌" };
 const DEFAULT_OPPONENTS = ["BombBot", "橘猫队长", "闪电爪", "夜行喵"];
+
 const game = {
   gameId: null, deck: null, opponents: [], hand: [], discarded: null, turn: "waiting",
-  currentPlayerName: "你", currentPlayerId: null, selectedCard: null, selectedIndex: null,
+  currentPlayerName: "你", currentPlayerId: null, 
+  selectedIndices: [], // 【核心】用数组存选中的多张手牌索引
   logs: [], busy: false, connected: false, recoveryRequired: false, gameOver: false, playerAlive: true,
-  winnerId: null, canDraw: false, drawCountNext: 4, drewThisTurn: false, bombsRemaining: null
+  winnerId: null, canDraw: false, drawCountNext: 1, drewThisTurn: false, bombsRemaining: null
 };
+
 const $ = (selector) => document.querySelector(selector);
 const handElement = $("#hand");
 const statusText = $("#statusText");
@@ -66,12 +70,10 @@ function hydrateGame(state) {
   game.gameOver = state.gameOver === true;
   game.playerAlive = state.playerAlive !== false;
   game.winnerId = state.winnerId || null;
-  game.canDraw = typeof state.canDraw === "boolean" ? state.canDraw : !game.drewThisTurn;
-  // 抽牌即换手，一次只抽 1 张
   game.drawCountNext = 1;
-  game.bombsRemaining = state.bombsRemaining ?? null;
-  game.selectedCard = null;
-  game.selectedIndex = null;
+  
+  // 清空多选状态
+  game.selectedIndices = [];
   render();
 }
 
@@ -117,6 +119,13 @@ function renderHand() {
     game.hand.forEach((cardId, index) => {
       const node = $("#cardTemplate").content.firstElementChild.cloneNode(true);
       populateCard(node, cardId);
+      
+      // 恢复选中状态
+      const selected = game.selectedIndices.includes(index);
+      node.classList.toggle("selected", selected);
+      node.setAttribute("aria-pressed", String(selected));
+      node.querySelector(".card-bottom").textContent = selected ? "已选择 · 再次点击取消" : "点击选择";
+      
       node.setAttribute("aria-label", `${CARD_LIBRARY[cardId]?.name || "未知卡牌"}，点击选择后确认出牌`);
       node.addEventListener("click", () => selectCard(cardId, index));
       handElement.appendChild(node);
@@ -143,7 +152,6 @@ function renderOpponents() {
 
 function renderLog() {
   logList.replaceChildren();
-  // Hide only the entries the user cleared; newly received entries remain visible.
   let start = 0;
   for (let count = Math.min(hiddenLogPrefix.length, game.logs.length); count > 0; count -= 1) {
     if (hiddenLogPrefix.slice(-count).every((entry, index) => entry === game.logs[index])) { start = count; break; }
@@ -168,19 +176,56 @@ function renderLog() {
   }
 }
 
+// 【核心修改】多选逻辑
 function selectCard(cardId, index) {
   if (!canAct() || !CARD_LIBRARY[cardId] || cardId === "exploding_kitten") return;
-  const deselect = game.selectedIndex === index;
-  game.selectedCard = deselect ? null : cardId;
-  game.selectedIndex = deselect ? null : index;
+  
+  const catTypes = ["taco", "rainbow", "potato", "braid_uncle"];
+  const isCat = catTypes.includes(cardId);
+  
+  if (isCat) {
+    const currentSelectedIds = game.selectedIndices.map(i => game.hand[i]);
+    // 如果已选猫牌与点击的猫牌种类不同，则清空之前的选中
+    if (currentSelectedIds.length > 0 && currentSelectedIds[0] !== cardId) {
+      game.selectedIndices = [index];
+    } else {
+      // 切换选中状态
+      if (game.selectedIndices.includes(index)) {
+        game.selectedIndices = game.selectedIndices.filter(i => i !== index);
+      } else {
+        game.selectedIndices.push(index);
+      }
+    }
+  } else {
+    // 功能牌只能单选
+    if (game.selectedIndices.length === 1 && game.selectedIndices[0] === index) {
+      game.selectedIndices = [];
+    } else {
+      game.selectedIndices = [index];
+    }
+  }
+
+  // 更新 UI
   [...handElement.querySelectorAll(".hand-card")].forEach((node, nodeIndex) => {
-    const selected = nodeIndex === game.selectedIndex;
+    const selected = game.selectedIndices.includes(nodeIndex);
     node.classList.toggle("selected", selected);
     node.setAttribute("aria-pressed", String(selected));
     node.querySelector(".card-bottom").textContent = selected ? "已选择 · 再次点击取消" : "点击选择";
   });
+  
   syncControls();
-  setStatus(deselect ? "已取消选择。你可以重新选牌，或直接结束回合。" : `已选中「${CARD_LIBRARY[cardId].name}」，点击“出牌并结束”确认。`);
+  
+  if (game.selectedIndices.length === 0) {
+    setStatus("已取消选择。");
+  } else {
+    const count = game.selectedIndices.length;
+    const name = CARD_LIBRARY[cardId].name;
+    if (isCat) {
+      setStatus(`已选中 ${count} 张「${name}」。`);
+    } else {
+      setStatus(`已选中「${name}」。`);
+    }
+  }
 }
 
 function updateDiscard(cardId) {
@@ -214,18 +259,34 @@ function canAct() {
 
 function syncControls() {
   const active = canAct();
-  // 判断当前是否允许抽牌
   const drawAllowed = active && game.canDraw && !game.drewThisTurn && game.deck > 0;
   
   $("#drawButton").disabled = !drawAllowed;
   $("#deckButton").disabled = !drawAllowed;
-  $("#drawButton span").textContent = "抽取 1 张";
-  $(".deck-label").textContent = `抽取 1 张`;
-  $("#deckButton").setAttribute("aria-label", `从牌库抽取 1 张牌`);
+  $("#drawButton span").textContent = "不出牌，直接抽牌";
+  $(".deck-label").textContent = "抽取 1 张";
+  $("#deckButton").setAttribute("aria-label", "从牌库抽取 1 张牌");
 
-  $("#endButton").disabled = !active || !game.selectedCard;
-  $("#endButton").textContent = game.selectedCard ? "打出选中卡牌" : "请先选牌";
+  // 出牌按钮验证逻辑
+  let canPlay = false;
+  if (game.selectedIndices.length > 0) {
+    const selectedIds = game.selectedIndices.map(i => game.hand[i]);
+    const isCat = ["taco", "rainbow", "potato", "braid_uncle"].includes(selectedIds[0]);
+    if (isCat) {
+      // 普通猫牌：必须 >= 2 张，且全部相同
+      if (selectedIds.length >= 2 && new Set(selectedIds).size === 1) {
+        canPlay = true;
+      }
+    } else {
+      // 功能牌：只能单张
+      if (selectedIds.length === 1) {
+        canPlay = true;
+      }
+    }
+  }
 
+  $("#endButton").disabled = !active || !canPlay;
+  $("#endButton").textContent = canPlay ? "打出选中卡牌" : "请正确选牌";
 
   handElement.querySelectorAll(".hand-card").forEach((node) => { 
     node.disabled = !active || !CARD_LIBRARY[node.dataset.cardId] || node.dataset.cardId === "exploding_kitten"; 
@@ -248,24 +309,29 @@ function syncControls() {
     $("#turnPill").textContent = game.busy ? "处理中" : `${game.currentPlayerName} 的回合`;
     $("#actionTitle").textContent = game.busy ? "正在处理行动" : `${game.currentPlayerName} 正在行动`;
     $("#actionHint").textContent = "请等待服务端返回结果，不要重复操作。";
-  } else if (game.selectedCard) {
+  } else if (game.selectedIndices.length > 0) {
     $("#turnPill").textContent = "你的回合";
-    $("#actionTitle").textContent = `准备使用：${CARD_LIBRARY[game.selectedCard].name}`;
-    $("#actionHint").textContent = CARD_LIBRARY[game.selectedCard].description;
+    const selectedIds = game.selectedIndices.map(i => game.hand[i]);
+    const isCat = ["taco", "rainbow", "potato", "braid_uncle"].includes(selectedIds[0]);
+    if (isCat && selectedIds.length === 1) {
+      $("#actionTitle").textContent = `已选 1 张${CARD_LIBRARY[selectedIds[0]].name}`;
+      $("#actionHint").textContent = "普通猫牌需要至少选中两张相同的牌才能打出！";
+    } else {
+      $("#actionTitle").textContent = `准备使用：${CARD_LIBRARY[selectedIds[0]].name}`;
+      $("#actionHint").textContent = CARD_LIBRARY[selectedIds[0]].description;
+    }
   } else {
     $("#turnPill").textContent = "你的回合";
     $("#actionTitle").textContent = game.hand.length ? "轮到你了，谨慎出牌" : "先领取你的手牌";
-    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw 
-      ? "本回合已抽牌，可选牌或结束回合。" 
-      : "你可以抽牌、出牌，或直接选择不抽牌并结束回合。";
+    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw ? "本回合已抽牌，可选牌或结束回合。" : "可抽牌，或选择手牌打出。";
   }
 }
+
 function setBusy(busy) { game.busy = busy; syncControls(); }
 function showError(error) { setStatus(error.name === "TimeoutError" ? "请求超时，操作结果尚未确认。请稍后刷新并检查服务状态。" : error.message || "操作未完成，请重试。", true); }
 
 async function recoverAction(error) {
   if (error.confirmedRejection) { showError(error); return; }
-  // Never replay a mutation after an uncertain response. Reconcile with a read.
   game.recoveryRequired = true;
   try {
     const payload = await api(`/games/${game.gameId}`, { method: "GET" });
@@ -332,11 +398,12 @@ function showPeekModal(cards) {
   
   modal.hidden = false;
   
-  document.getElementById('closePeekBtn').onclick = async () => {
+  document.getElementById('closePeekBtn').onclick = () => {
     modal.hidden = true;
-    await finishTurnAndRunAI(); 
+    // 预知未来看完牌不结束回合，只关闭弹窗，玩家可继续操作
   };
 }
+
 async function startGame() {
   render();
   setBusy(true);
@@ -356,23 +423,25 @@ async function startGame() {
     }
   }
 }
+
 async function playSelectedCard() {
-  if (!canAct() || !game.selectedCard) return;
+  if (!canAct() || game.selectedIndices.length === 0) return;
+  
+  const cardIds = game.selectedIndices.map(i => game.hand[i]);
+  
   try {
     setBusy(true);
-    const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
+    const played = await api(`/games/${game.gameId}/play`, { 
+      method: "POST", 
+      body: JSON.stringify({ cardIds }) 
+    });
     
     if (played.peek && played.peek.length > 0) {
       showPeekModal(played.peek);
     }
     
     hydrateGame(played.game);
-    
-    if (game.turn !== "player") {
-      setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，回合已结束。`);
-    } else {
-      setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
-    }
+    setStatus(`已打出选中的卡牌，你可以继续出牌或点击抽牌结束回合。`);
   } catch (error) { 
     await recoverAction(error); 
   } finally { 
@@ -389,14 +458,15 @@ function closeSettings() {
   $("#settingsModal").hidden = true;
   previouslyFocused?.focus();
 }
-$("#endButton").addEventListener("click", playSelectedCard);
 
+$("#endButton").addEventListener("click", playSelectedCard);
 $("#deckButton").addEventListener("click", drawCard);
 $("#drawButton").addEventListener("click", drawCard);
 $("#settingsButton").addEventListener("click", openSettings);
 document.querySelectorAll("[data-close-settings]").forEach((button) => button.addEventListener("click", closeSettings));
 $("#saveApiButton").addEventListener("click", closeSettings);
 $("#clearLog").addEventListener("click", () => { hiddenLogPrefix = [...game.logs]; renderLog(); });
+
 document.addEventListener("keydown", (event) => {
   if (!$("#settingsModal").hidden) {
     if (event.key === "Escape") closeSettings();
@@ -408,12 +478,13 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  // Let focused buttons handle Enter themselves, avoiding a second draw on keydown.
+  // 回车快捷键抽牌
   if (event.key === "Enter" && !event.repeat && [document.body, document.documentElement].includes(document.activeElement)) {
     event.preventDefault();
     drawCard();
   }
 });
+
 function triggerEffect(effectType) {
   const body = document.body;
   body.classList.remove('screen-shake', 'flash-red', 'pulse-attack');
@@ -452,8 +523,6 @@ function showReinsertModal(deckSize) {
     };
 
     modal.hidden = false;
-    // 如果 CSS 用 display:none 写死，这里要强制显示
-    // modal.style.display = 'flex';
 
     confirmBtn.onclick = async () => {
       confirmBtn.disabled = true;
@@ -469,7 +538,6 @@ function showReinsertModal(deckSize) {
       } catch (error) {
         console.error("放回炸弹失败:", error);
         setStatus("放回炸弹失败：" + (error.message || "请重试"), true);
-        // 保留弹窗让玩家重试
         confirmBtn.disabled = false;
       } finally {
         setBusy(false);
@@ -477,57 +545,13 @@ function showReinsertModal(deckSize) {
     };
   });
 }
- 
-async function handleDraw() {
-    try {
 
-        if (drawPayload.exploded) {
-            // 炸弹爆炸
-            triggerEffect('explode');
-            setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
-          } else if (drawPayload.need_reinsert) {
-            setStatus("拆弹成功，请选择炸弹放回的位置。");
-            
-            try {
-                // 2. 【关键】加上 await，让游戏在这里等玩家操作完毕！
-                // payload 就是我们在 showReinsertModal 的 resolve 里传出来的数据
-                const reinsertPayload = await showReinsertModal(game.deck); 
-                
-                // 3. 玩家操作完毕且接口成功后，更新游戏状态
-                hydrateGame(reinsertPayload.game); 
-                setStatus("炸弹已放回，AI 开始行动...");
-                
-                // 4. 轮到 AI 行动，推进下一回合
-                await startGame(); 
-                
-            } catch (error) {
-                // 如果玩家关掉弹窗或者接口报错
-                await recoverAction(error);
-            }
-            } else {
-            // 正常抽牌
-            if (game.turn === "player" && game.playerAlive) {
-                triggerEffect('attack_received');
-                setStatus(`你抽取了：${names}。由于你受到攻击，你还有一次额外行动机会！`, true);
-            } else {
-                // 正常回合结束，推进到下一回合
-                setStatus(`你抽取了：${names}，回合结束。`);
-                // 加上 await，确保 AI 能正常走完
-                await startGame(); 
-            }
-        }
-    } catch (error) {
-        console.error("抽牌过程出错:", error);
-    }
-} 
+// 启动
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        console.log("页面加载完成，正在初始化游戏...");
-        
-        // 启动游戏
-        await startGame(); 
-        
+      console.log("页面加载完成，正在初始化游戏...");
+      await startGame(); 
     } catch (error) {
-        console.error("游戏初始化失败:", error);
+      console.error("游戏初始化失败:", error);
     }
 });
