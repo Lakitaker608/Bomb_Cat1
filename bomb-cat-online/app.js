@@ -223,15 +223,9 @@ function syncControls() {
   $(".deck-label").textContent = `抽取 1 张`;
   $("#deckButton").setAttribute("aria-label", `从牌库抽取 1 张牌`);
 
-  // 只有轮到玩家，且【选中了某张牌】时，出牌按钮才可用
   $("#endButton").disabled = !active || !game.selectedCard;
   $("#endButton").textContent = game.selectedCard ? "打出选中卡牌" : "请先选牌";
 
-  const skipDrawBtn = document.getElementById("skipDrawButton");
-  if (skipDrawBtn) {
-    // 只要轮到玩家，就可以选择直接结束回合
-    skipDrawBtn.disabled = !active;
-  }
 
   handElement.querySelectorAll(".hand-card").forEach((node) => { 
     node.disabled = !active || !CARD_LIBRARY[node.dataset.cardId] || node.dataset.cardId === "exploding_kitten"; 
@@ -386,20 +380,6 @@ async function playSelectedCard() {
   }
 }
 
-async function endTurnNoDraw() {
-  if (!canAct()) return;
-  try {
-    setBusy(true);
-    setStatus("正在跳过抽牌并结束回合...");
-    const payload = await api(`/games/${game.gameId}/end-turn-no-draw`, { method: "POST" });
-    hydrateGame(payload.game);
-    setStatus("你选择了不抽牌，当前对手已完成行动。");
-  } catch (error) {
-    await recoverAction(error);
-  } finally {
-    setBusy(false);
-  }
-}
 function openSettings() {
   previouslyFocused = document.activeElement;
   $("#settingsModal").hidden = false;
@@ -410,7 +390,6 @@ function closeSettings() {
   previouslyFocused?.focus();
 }
 $("#endButton").addEventListener("click", playSelectedCard);
-$("#skipDrawButton").addEventListener("click", endTurnNoDraw);
 
 $("#deckButton").addEventListener("click", drawCard);
 $("#drawButton").addEventListener("click", drawCard);
