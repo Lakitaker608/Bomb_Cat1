@@ -322,7 +322,6 @@ def create_game():
     # 5. 现在手牌发完了，开始把炸弹塞进剩余牌库
     bombs = len(session.seats) - 1 # 5人局塞4个炸弹
     if bombs > 0 and len(deck) > 0:
-        # 均匀散布炸弹算法
         segment_size = len(deck) // bombs
         for i in range(bombs):
             # 随机选择在当前区段插入
@@ -395,9 +394,8 @@ def reinsert_bomb(game_id: str):
     if not session: return fail("牌局不存在", 404)
     
     data = request.get_json(silent=True) or {}
-    index = data.get("index", len(session.deck)) # 默认放最后
+    index = data.get("index", len(session.deck))
     
-    # 限制索引范围
     index = max(0, min(index, len(session.deck)))
     
     session.deck.insert(index, "exploding_kitten")
@@ -422,23 +420,24 @@ def play_card(game_id: str):
     add_log(session, f"你打出 {CARD_LIBRARY[card_id]['name']}。")
     
     peek_cards = [] # 用于存储预知未来的牌
-    
+
     if card_id == "attack":
-    # 寻找下一个存活玩家
         target_seat = None
         for i in range(1, len(session.seats)):
             target_idx = (session.turn_index + i) % len(session.seats)
             if session.seats[target_idx].alive:
                 target_seat = session.seats[target_idx]
                 break
+        if target_seat:
+            target_seat.extra_turns += 1
+            # 【修复】把 seat.name 改成 你
+            add_log(session, f"你攻击生效：{target_seat.name} 将承受额外回合！")
             
-    if target_seat:
-        target_seat.extra_turns += 1
-        add_log(session, f"{seat.name} 攻击生效：{target_seat.name} 将承受额外回合！")
-        
     elif card_id == "skip":
         session.drawn_this_turn = True
         add_log(session, "跳过生效：直接结束本回合。")
+        # 【新增】打出跳过牌后，直接结束你的回合，让 AI 行动
+        run_until_human(session)
         
     elif card_id == "shuffle":
         random.shuffle(session.deck)
@@ -473,5 +472,17 @@ def play_card(game_id: str):
         "peek": peek_cards # 将看到的牌发给前端
     })
 
+@app.post("/api/games/<game_id>/end-turn-no-draw")
+def end_turn_no_draw(game_id: str):
+    session = get_session(game_id)
+    if not session or session.game_over: return fail("牌局不可用", 400)
+    if not session.current_seat.is_human: return fail("不是你的回合", 409)
+    
+    session.drawn_this_turn = True
+    add_log(session, "你选择了不抽牌，直接结束回合。")
+    
+    run_until_human(session)
+    
+    return jsonify({"ok": True, "game": session.public_state()})
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
