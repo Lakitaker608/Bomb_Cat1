@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- SVG 图标库 -->
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs>
       <symbol id="icon-cat" viewBox="0 0 80 80"><path d="M16 32 12 9 34 22Q40 20 46 22L68 9 64 32Q76 65 40 70 4 65 16 32Z" fill="currentColor" stroke="#34352e" stroke-width="3" stroke-linejoin="round"/><path d="m19 18 3 15 9-6m30-9-3 15-9-6" fill="#fff" opacity=".55"/><path d="m24 42 7-2m18 0 7 2M35 51l5 4 5-4m-5 4v5m0-1q-7 7-12 0m12 0q7 7 12 0" fill="none" stroke="#34352e" stroke-width="3" stroke-linecap="round"/><path d="m13 47 10 2m-10 6 10-1m44-7-10 2m10 6-10-1" stroke="#34352e" stroke-width="2" stroke-linecap="round"/></symbol>
@@ -24,107 +25,205 @@
       <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     </defs>
   </svg>
-  <main class="game-shell" aria-label="炸弹猫五人对战室">
+
+    <main class="game-shell" aria-label="炸弹猫五人对战室">
     <header class="topbar">
-      <a class="brand" href="./" aria-label="炸弹猫首页"><span class="brand-mark"><svg><use href="#icon-cat" /></svg></span><span><b>炸弹猫<span class="brand-dot">.</span></b><small>EXPLODING CATS</small></span></a>
-      <div class="round-meta"><span id="connectionBadge" class="connection-badge"><i></i><span>正在连接</span></span><button id="settingsButton" class="icon-button" type="button" aria-label="打开接口设置"><svg><use href="#icon-settings" /></svg></button></div>
+      <a class="brand" href=" " aria-label="炸弹猫首页"><span class="brand-mark"><svg><use href="#icon-cat" /></svg></span><span><b>炸弹猫<span class="brand-dot">.</span></b><small>EXPLODING CATS</small></span></a >
+      <div class="round-meta">
+        <span id="connectionBadge" class="connection-badge"><i></i><span>正在连接</span></span>
+        <button id="settingsButton" class="icon-button" type="button" aria-label="打开接口设置"><svg><use href="#icon-settings" /></svg></button>
+      </div>
     </header>
+
     <section class="table" aria-label="游戏桌面">
-      <div class="room-heading"><div><p class="eyebrow">THE CAT CLUB / PRIVATE TABLE</p><h1>五人对战室 <span class="mode-label">1 位玩家 · 4 位 AI</span></h1></div><span id="aliveCount" class="room-info">等待牌局连接</span></div>
+      <div class="room-heading">
+        <div>
+          <p class="eyebrow">THE CAT CLUB / PRIVATE TABLE</p >
+          <h1>五人对战室 <span class="mode-label">1 位玩家 · 4 位 AI</span></h1>
+        </div>
+        <span id="aliveCount" class="room-info">等待牌局连接</span>
+      </div>
+
       <section id="opponentSeats" class="opponent-seats" aria-label="四名 AI 对手">
         <article class="opponent-seat seat-1 is-waiting"><div class="seat-avatar"><svg><use href="#icon-cat" /></svg></div><div class="seat-copy"><span class="seat-number">SEAT 02 <i>AI</i></span><strong>BombBot</strong><small>等待连接</small></div><div class="seat-count"><b>—</b><span>手牌</span></div></article>
         <article class="opponent-seat seat-2 is-waiting"><div class="seat-avatar"><svg><use href="#icon-cat" /></svg></div><div class="seat-copy"><span class="seat-number">SEAT 03 <i>AI</i></span><strong>橘猫队长</strong><small>等待连接</small></div><div class="seat-count"><b>—</b><span>手牌</span></div></article>
         <article class="opponent-seat seat-3 is-waiting"><div class="seat-avatar"><svg><use href="#icon-cat" /></svg></div><div class="seat-copy"><span class="seat-number">SEAT 04 <i>AI</i></span><strong>闪电爪</strong><small>等待连接</small></div><div class="seat-count"><b>—</b><span>手牌</span></div></article>
         <article class="opponent-seat seat-4 is-waiting"><div class="seat-avatar"><svg><use href="#icon-cat" /></svg></div><div class="seat-copy"><span class="seat-number">SEAT 05 <i>AI</i></span><strong>夜行喵</strong><small>等待连接</small></div><div class="seat-count"><b>—</b><span>手牌</span></div></article>
       </section>
-      <section class="status-banner" aria-live="polite" aria-atomic="true"><span class="status-icon"><svg><use href="#icon-paw" /></svg></span><span id="statusText">正在连接牌局，四名 AI 对手已预留座位。</span><span id="turnPill" class="turn-pill">连接中</span></section>
+
+      <section class="status-banner" aria-live="polite" aria-atomic="true">
+        <span class="status-icon"><svg><use href="#icon-paw" /></svg></span>
+        <span id="statusText">正在连接牌局，四名 AI 对手已预留座位。</span>
+        <span id="turnPill" class="turn-pill">连接中</span>
+      </section>
+
       <div class="arena-layout">
         <section class="playfield" aria-label="中央牌桌">
           <header class="section-heading"><h2><svg><use href="#icon-cards" /></svg>对战牌桌</h2><span class="table-tag">TABLE 01</span></header>
           <div class="board-center">
             <section class="deck-group" aria-label="抽牌区">
               <div class="pile-heading"><h3>抽牌堆</h3><span>DRAW PILE</span></div>
-              <div class="pile-stage deck-stage"><button id="deckButton" class="deck card-back" type="button" aria-label="抽取起始手牌" disabled><span class="deck-topline">THE CAT CLUB</span><svg class="deck-cat"><use href="#icon-cat" /></svg><span class="deck-label">抽取 4 张</span><span class="deck-subtitle">GOOD LUCK, HUMAN.</span></button></div>
+              <div class="pile-stage deck-stage">
+                <!-- 抽牌堆文案改为 1 张 -->
+                <button id="deckButton" class="deck card-back" type="button" aria-label="抽取 1 张牌" disabled>
+                  <span class="deck-topline">THE CAT CLUB</span>
+                  <svg class="deck-cat"><use href="#icon-cat" /></svg>
+                  <span class="deck-label">抽取 1 张</span>
+                  <span class="deck-subtitle">GOOD LUCK, HUMAN.</span>
+                </button>
+              </div>
               <span class="deck-count">牌库剩余 <b id="deckCount">—</b> 张</span>
             </section>
+            
             <div class="pile-divider" aria-hidden="true"><span><svg><use href="#icon-arrow" /></svg></span></div>
+            
             <section class="discard-group" aria-label="弃牌区">
               <div class="pile-heading"><h3>弃牌堆</h3><span class="latest-badge">顶部卡牌</span></div>
-              <div class="pile-stage discard-stage"><div id="discardCard" class="discard empty-discard" aria-label="暂无弃牌"><svg><use href="#icon-cards" /></svg><b>暂无弃牌</b><small>打出的卡牌会留在这里</small></div></div>
+              <div class="pile-stage discard-stage">
+                <div id="discardCard" class="discard empty-discard" aria-label="暂无弃牌">
+                  <svg><use href="#icon-cards" /></svg>
+                  <b>暂无弃牌</b>
+                  <small>打出的卡牌会留在这里</small>
+                </div>
+              </div>
               <div class="discard-meta"><b id="discardName">等待第一张弃牌</b><span id="discardDescription">查看最近一张卡牌</span></div>
             </section>
           </div>
           <div class="table-footnote"><span class="tiny-dot"></span>稳住，下一张不一定是炸弹。<span id="bombInfo" hidden></span></div>
         </section>
+
         <aside class="side-column">
-          <section class="activity-log panel-card" aria-label="对局记录"><div class="log-title"><h2>对局动态 <span>LIVE</span></h2><button id="clearLog" type="button">清空</button></div><ol id="logList"><li class="log-empty">连接成功后，这里将显示真实的对局记录。</li></ol></section>
-          <section class="table-tip"><svg><use href="#icon-shield" /></svg><div><h3>给猫奴的小提示</h3><p>点击手牌查看说明，再确认出牌。对手只展示手牌数量，不会泄露牌面。</p></div></section>
+          <section class="activity-log panel-card" aria-label="对局记录">
+            <div class="log-title"><h2>对局动态 <span>LIVE</span></h2><button id="clearLog" type="button">清空</button></div>
+            <ol id="logList"><li class="log-empty">连接成功后，这里将显示真实的对局记录。</li></ol>
+          </section>
+          <section class="table-tip">
+            <svg><use href="#icon-shield" /></svg>
+            <div>
+              <h3>给猫奴的小提示</h3>
+              <p>点击手牌查看说明，再确认出牌。对手只展示手牌数量，不会泄露牌面。</p >
+            </div>
+          </section>
         </aside>
       </div>
+
       <section class="player-zone" aria-label="玩家手牌区">
-        <header class="hand-header"><div class="player-info"><div class="player-avatar"><svg><use href="#icon-paw" /></svg></div><div><h2>我的手牌 <span>YOU</span></h2><p>共 <b id="playerCards">0</b> 张 · 卡牌平铺展示</p></div></div><span class="hand-caption">抽取起始手牌，开始这场猫咪对决</span></header>
-        <div id="hand" class="hand" aria-label="你的手牌"><div class="empty-hand"><svg><use href="#icon-cards" /></svg><b>你的手牌区，正在待命</b><small>连接牌局后，从抽牌堆领取起始手牌</small></div></div>
+        <header class="hand-header">
+          <div class="player-info">
+            <div class="player-avatar"><svg><use href="#icon-paw" /></svg></div>
+            <div>
+              <h2>我的手牌 <span>YOU</span></h2>
+              <p>共 <b id="playerCards">0</b> 张 · 卡牌平铺展示</p >
+            </div>
+          </div>
+          <span class="hand-caption">抽取手牌，开始这场猫咪对决</span>
+        </header>
+        <div id="hand" class="hand" aria-label="你的手牌">
+          <div class="empty-hand">
+            <svg><use href="#icon-cards" /></svg>
+            <b>你的手牌区，正在待命</b>
+            <small>连接牌局后，从抽牌堆领取起始手牌</small>
+          </div>
+        </div>
       </section>
     </section>
-    <footer class="action-bar"><div class="turn-copy"><span class="turn-light"></span><div><b id="actionTitle">正在连接牌局</b><span id="actionHint">请稍候，连接成功后即可开始。</span></div></div><div class="actions"><button id="drawButton" class="button button-secondary" type="button" disabled><svg><use href="#icon-cards" /></svg><span>抽取四张</span></button><button id="endButton" class="button button-primary" type="button" disabled><span>结束回合</span><svg><use href="#icon-arrow" /></svg></button></div></footer>
+
+    <!-- 底部操作栏 -->
+    <footer class="action-bar">
+      <div class="turn-copy">
+        <span class="turn-light"></span>
+        <div>
+          <b id="actionTitle">正在连接牌局</b>
+          <span id="actionHint">请稍候，连接成功后即可开始。</span>
+        </div>
+      </div>
+      <div class="actions">
+        <!-- 抽牌按钮 -->
+        <button id="drawButton" class="button button-secondary" type="button" disabled>
+          <svg><use href="#icon-cards" /></svg>
+          <span>抽取 1 张</span>
+        </button>
+        <!-- 新增：不抽牌并结束按钮 -->
+        <button id="skipDrawButton" class="button button-secondary" type="button" disabled>
+          <svg><use href="#icon-skip" /></svg>
+          <span>不抽牌结束</span>
+        </button>
+        <!-- 出牌按钮 (原 endButton) -->
+        <button id="endButton" class="button button-primary" type="button" disabled>
+          <span>打出卡牌</span>
+          <svg><use href="#icon-arrow" /></svg>
+        </button>
+      </div>
+    </footer>
+
     <div class="page-signoff"><span>EXPLODING CATS</span><span>保持冷静 · 远离炸弹</span></div>
   </main>
-  <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden><div class="modal-backdrop" data-close-settings></div><section class="modal-card"><button class="modal-close" type="button" data-close-settings aria-label="关闭设置">×</button><p class="eyebrow">AGENT INTEGRATION</p><h2 id="settingsTitle">AI 对手接口</h2><p class="modal-description">由游戏后端转发 AI 请求。接口和令牌仅在服务端配置，无需在浏览器中填写。</p><label>接口地址<input id="apiEndpoint" type="text" value="AGENT_ENDPOINT" readonly /></label><label>授权令牌<input id="apiToken" type="text" value="AGENT_TOKEN（仅服务端读取）" readonly /></label><div class="modal-tip"><b>服务端请求：</b><code>POST AGENT_ENDPOINT</code><br /><b>预期响应：</b><code>{ "action": "play", "cardId": "attack" }</code></div><button id="saveApiButton" class="button button-primary modal-save" type="button">知道了</button></section></div>
-  <template id="cardTemplate"><button class="playing-card hand-card" type="button" aria-pressed="false"><span class="card-top"><span class="card-category"></span><svg class="card-mini"><use /></svg></span><span class="card-art"><svg class="card-art-icon"><use /></svg></span><b class="card-name"></b><small class="card-english"></small><span class="card-bottom">点击选择</span><span class="selection-mark" aria-hidden="true">已选</span></button></template>
 
+  <!-- 设置弹窗 -->
+  <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="modal-backdrop" data-close-settings></div>
+    <section class="modal-card">
+      <button class="modal-close" type="button" data-close-settings aria-label="关闭设置">×</button>
+      <p class="eyebrow">AGENT INTEGRATION</p >
+      <h2 id="settingsTitle">AI 对手接口</h2>
+      <p class="modal-description">由游戏后端转发 AI 请求。接口和令牌仅在服务端配置，无需在浏览器中填写。</p >
+      <label>接口地址<input id="apiEndpoint" type="text" value="AGENT_ENDPOINT" readonly /></label>
+      <label>授权令牌<input id="apiToken" type="text" value="AGENT_TOKEN（仅服务端读取）" readonly /></label>
+      <div class="modal-tip">
+        <b>服务端请求：</b><code>POST AGENT_ENDPOINT</code><br />
+        <b>预期响应：</b><code>{ "action": "play", "cardId": "attack" }</code>
+      </div>
+      <button id="saveApiButton" class="button button-primary modal-save" type="button">知道了</button>
+    </section>
+  </div>
+
+  <!-- 预知未来弹窗 -->
+  <div id="peekModal" class="modal-overlay" hidden>
+    <div class="modal-card-content">
+      <h2>预知未来</h2>
+      <p>这是牌堆顶部的牌（从左到右依次抽取）：</p >
+      <div id="peekCardsContainer" class="peek-container">
+        <!-- 动态生成卡牌 -->
+      </div>
+      <button id="closePeekBtn" class="primary-btn" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">记住了，继续</button>
+    </div>
+  </div>
+
+  <!-- 炸弹放回弹窗 (唯一保留) -->
+  <div id="reinsertModal" class="modal-overlay" hidden>
+    <div class="modal-card-content bomb-theme">
+      <h2>💣 炸弹拆解成功</h2>
+      <p>请将炸弹猫秘密放回牌库。拖拽滑块选择位置：</p >
+      
+      <div class="slider-container">
+        <div class="slider-labels">
+          <span>最顶部 (第1张)</span>
+          <span id="bombIndexDisplay" class="index-highlight">第 5 张</span>
+          <span>最底部 (垫底)</span>
+        </div>
+        <input type="range" id="bombIndexSlider" min="0" max="20" value="5" class="bomb-slider">
+      </div>
+
+      <button id="confirmReinsertBtn" class="primary-btn danger-btn">确认放回并结束回合</button>
+    </div>
+  </div>
+
+  <!-- 模板区 -->
+  <template id="cardTemplate">
+    <button class="playing-card hand-card" type="button" aria-pressed="false">
+      <span class="card-top"><span class="card-category"></span><svg class="card-mini"><use /></svg></span>
+      <span class="card-art"><svg class="card-art-icon"><use /></svg></span>
+      <b class="card-name"></b>
+      <small class="card-english"></small>
+      <span class="card-bottom">点击选择</span>
+      <span class="selection-mark" aria-hidden="true">已选</span>
+    </button>
+  </template>
+
+  <!-- 脚本引入 -->
   <script>
-
     window.BOMB_CAT_API_BASE = "https://bomb-cat1-1.onrender.com";
   </script>
   <script src="app.js"></script>
-  <!-- 预知未来弹窗 -->
-<div id="peekModal" class="modal-overlay" hidden>
-  <div class="modal-card-content">
-    <h2>预知未来</h2>
-    <p>这是牌堆顶部的牌（从左到右依次抽取）：</p >
-    <div id="peekCardsContainer" class="peek-container">
-      <!-- 动态生成卡牌 -->
-    </div>
-    <button id="closePeekBtn" class="primary-btn" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">记住了，继续</button>
-  </div>
-</div>
-  <!-- 炸弹放回弹窗 -->
-<div id="reinsertModal" class="modal-overlay" hidden>
-  <div class="modal-card-content bomb-theme">
-    <h2>💣 炸弹拆解成功</h2>
-    <p>请将炸弹猫秘密放回牌库。拖拽滑块选择位置：</p >
-    
-    <div class="slider-container">
-      <div class="slider-labels">
-        <span>最顶部 (第1张)</span>
-        <span id="bombIndexDisplay" class="index-highlight">第 5 张</span>
-        <span>最底部 (垫底)</span>
-      </div>
-      <input type="range" id="bombIndexSlider" min="0" max="20" value="5" class="bomb-slider">
-    </div>
-
-    <button id="confirmReinsertBtn" class="primary-btn danger-btn">确认放回并结束回合</button>
-  </div>
-</div>
-  <!-- 炸弹放回弹窗 -->
-<div id="reinsertModal" class="modal-overlay" hidden>
-    <div class="modal-card-content bomb-theme">
-        <h2>💣 炸弹拆解成功</h2>
-        <p>请将炸弹猫秘密放回牌库。拖拽滑块选择位置：</p >
-        <div class="slider-container">
-            <div class="slider-labels">
-                <span>最顶部 (第1张)</span>
-                <!-- 唯一的一个 Display -->
-                <span id="bombIndexDisplay" class="index-highlight">第 5 张</span>
-                <span>最底部 (垫底)</span>
-            </div>
-            <!-- 唯一的一个 Slider -->
-            <input type="range" id="bombIndexSlider" min="0" max="20" value="5" class="bomb-slider">
-        </div>
-        
-        <!-- 唯一的一个 Button -->
-        <button id="confirmReinsertBtn" class="primary-btn danger-btn">确认放回并结束回合</button>
-    </div>
-</div>
 </body>
 </html>
