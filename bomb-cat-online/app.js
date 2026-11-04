@@ -274,30 +274,44 @@ async function drawCard() {
   try {
     setBusy(true);
     const payload = await api(`/games/${game.gameId}/draw`, { method: "POST" });
-    game.drewThisTurn = true;
     hydrateGame(payload.game);
-    
+
     const drawn = payload.drawnCards || [];
     const names = drawn.map((id) => `「${CARD_LIBRARY[id]?.name || "未知卡牌"}」`).join("、");
-    
+
     if (payload.exploded) {
       triggerEffect('explode');
       setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
-    } else if (payload.defused) {
-      triggerEffect('defuse');
-      setStatus("你抽到了炸弹猫，已使用拆弹成功化解。", true);
-    } else if (drawn.includes('attack')) {
-      triggerEffect('attack_received'); // 抽到攻击牌等
-    } else {
-      setStatus(`你抽取了：${names}，回合结束。`);
+      return;
     }
-  } catch (error) { 
-    await recoverAction(error); 
-  } finally { 
-    setBusy(false); 
+
+    if (payload.defused || payload.need_reinsert || payload.needReinsert) {
+      triggerEffect('defuse');
+      setStatus("拆弹成功，请选择炸弹放回牌库的位置。");
+
+      const deckSize = payload.deckSize ?? payload.game?.deck ?? game.deck ?? 1;
+      try {
+        const reinsertPayload = await showReinsertModal(deckSize);
+        if (reinsertPayload?.game) hydrateGame(reinsertPayload.game);
+        setStatus("炸弹已放回牌库。");
+      } catch (err) {
+        await recoverAction(err);
+        return;
+      }
+
+      await finishTurnAndRunAI();   // 放回后推进回合
+      return;
+    }
+
+    if (drawn.includes('attack')) triggerEffect('attack_received');
+    setStatus(`你抽取了：${names}，回合结束。`);
+    await finishTurnAndRunAI();
+  } catch (error) {
+    await recoverAction(error);
+  } finally {
+    setBusy(false);
   }
 }
-
 async function endTurn() {
   if (!canAct() || !game.hand.length) return;
   
@@ -456,58 +470,52 @@ function triggerEffect(effectType) {
 }
 
 function showReinsertModal(deckSize) {
-    return new Promise((resolve, reject) => {
-        
-        // 获取 DOM 元素（只要 HTML 里有，这里就不会报错）
-        const modal = document.getElementById('reinsertModal');
-        const slider = document.getElementById('bombIndexSlider');
-        const display = document.getElementById('bombIndexDisplay');
-        const confirmBtn = document.getElementById('confirmReinsertBtn');
+  return new Promise((resolve, reject) => {
+    const modal = document.getElementById('reinsertModal');
+    const slider = document.getElementById('bombIndexSlider');
+    const display = document.getElementById('bombIndexDisplay');
+    const confirmBtn = document.getElementById('confirmReinsertBtn');
 
-        if (!modal || !slider || !display || !confirmBtn) {
-            console.error("找不到弹窗相关的 HTML 元素，请检查 index.html 中的 id 拼写！");
-            reject("DOM元素缺失");
-            return;
-        }
+    if (!modal || !slider || !display || !confirmBtn) {
+      reject(new Error("找不到弹窗元素，请检查 id: reinsertModal / bombIndexSlider / bombIndexDisplay / confirmReinsertBtn"));
+      return;
+    }
 
-        slider.max = deckSize;
-        slider.value = Math.floor(deckSize / 2);
-        display.textContent = `位置: 第 ${slider.value} 张`;
+    const size = Math.max(1, Number(deckSize) || 1);
+    slider.min = 1;
+    slider.max = size;
+    slider.value = Math.min(size, Math.max(1, Math.floor(size / 2)));
+    display.textContent = `位置: 第 ${slider.value} 张`;
 
-        // 滑动条拖动事件
-        slider.oninput = () => {
-            display.textContent = `位置: 第 ${slider.value} 张`;
-        };
+    slider.oninput = () => {
+      display.textContent = `位置: 第 ${slider.value} 张`;
+    };
 
-        // 显示弹窗
-        modal.hidden = false;
+    modal.hidden = false;
+    // 如果 CSS 用 display:none 写死，这里要强制显示
+    // modal.style.display = 'flex';
 
-        confirmBtn.onclick = async () => {
-            modal.hidden = true; // 点击后先隐藏弹窗
-            
-            try {
-                setBusy(true);
-                
-                const index = parseInt(slider.value);
-
-                // 调用后端接口
-                const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
-                    method: "POST",
-                    body: JSON.stringify({ index })
-                });
-
-                // 接口成功，通知主游戏流程继续往下走
-                resolve(payload); 
-                
-            } catch (error) {
-                console.error("放回炸弹失败:", error);
-                reject(error); 
-            } finally {
-                setBusy(false); 
-            }
-        };
-    });
-
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      try {
+        setBusy(true);
+        const index = parseInt(slider.value, 10);
+        const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
+          method: "POST",
+          body: JSON.stringify({ index })
+        });
+        modal.hidden = true;
+        resolve(payload);
+      } catch (error) {
+        console.error("放回炸弹失败:", error);
+        setStatus("放回炸弹失败：" + (error.message || "请重试"), true);
+        // 保留弹窗让玩家重试
+        confirmBtn.disabled = false;
+      } finally {
+        setBusy(false);
+      }
+    };
+  });
 }
  
 async function handleDraw() {
