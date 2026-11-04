@@ -454,63 +454,89 @@ function triggerEffect(effectType) {
     body.classList.add('pulse-attack');
   }
 }
+
 function showReinsertModal(deckSize) {
-  const modal = document.getElementById('reinsertModal');
-  const slider = document.getElementById('bombIndexSlider');
-  const display = document.getElementById('bombIndexDisplay');
-  
-  // 设置滑动条最大值（牌堆剩余数量）
-  slider.max = deckSize;
-  slider.value = Math.floor(deckSize / 2); // 默认放中间
-  display.textContent = `位置：第 ${slider.value} 张`;
-  
-  slider.oninput = () => {
-    display.textContent = `位置：第 ${slider.value} 张`;
-  };
+    return new Promise((resolve, reject) => {
+        
+        // 获取 DOM 元素（只要 HTML 里有，这里就不会报错）
+        const modal = document.getElementById('reinsertModal');
+        const slider = document.getElementById('bombIndexSlider');
+        const display = document.getElementById('bombIndexDisplay');
+        const confirmBtn = document.getElementById('confirmReinsertBtn');
 
-  modal.hidden = false;
+        if (!modal || !slider || !display || !confirmBtn) {
+            console.error("找不到弹窗相关的 HTML 元素，请检查 index.html 中的 id 拼写！");
+            reject("DOM元素缺失");
+            return;
+        }
 
- document.getElementById('confirmReinsertBtn').onclick = async () => {
-    modal.hidden = true; // 隐藏弹窗
-    try {
-        setBusy(true);
-        const index = parseInt(slider.value);
-        
-        // 调用后端接口，把炸弹放回去
-        const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
-            method: "POST",
-            body: JSON.stringify({ index })
-        });
-        
-        // 更新游戏状态
-        hydrateGame(payload.game);
-        setStatus("炸弹已放回，AI 开始行动...");
-        
-        setBusy(false);
-        await startGame(); 
-        
-    } catch (error) {
-        await recoverAction(error);
-        setBusy(false);
-    }
-};
+        slider.max = deckSize;
+        slider.value = Math.floor(deckSize / 2);
+        display.textContent = `位置: 第 ${slider.value} 张`;
+
+        // 滑动条拖动事件
+        slider.oninput = () => {
+            display.textContent = `位置: 第 ${slider.value} 张`;
+        };
+
+        // 显示弹窗
+        modal.hidden = false;
+
+        confirmBtn.onclick = async () => {
+            modal.hidden = true; // 点击后先隐藏弹窗
+            
+            try {
+                setBusy(true);
+                
+                const index = parseInt(slider.value);
+
+                // 调用后端接口
+                const payload = await api(`/games/${game.gameId}/reinsert-bomb`, {
+                    method: "POST",
+                    body: JSON.stringify({ index })
+                });
+
+                // 接口成功，通知主游戏流程继续往下走
+                resolve(payload); 
+                
+            } catch (error) {
+                console.error("放回炸弹失败:", error);
+                reject(error); 
+            } finally {
+                setBusy(false); 
+            }
+        };
+    });
 
 }
+ 
 async function handleDraw() {
     try {
-        // 假设这里是你获取抽牌结果的 API 请求（根据你实际情况保留原有的请求代码）
-        // const drawPayload = await api('/games/xxx/draw', ...);
-        // hydrateGame(drawPayload.game);
 
         if (drawPayload.exploded) {
             // 炸弹爆炸
             triggerEffect('explode');
             setStatus("你抽到了炸弹猫且没有拆弹，本局已结束。", true);
-        } else if (drawPayload.need_reinsert) {
-            // 抽到炸弹需要放回
-            showReinsertModal(game.deck); // 弹出选择位置的弹窗
+          } else if (drawPayload.need_reinsert) {
             setStatus("拆弹成功，请选择炸弹放回的位置。");
-        } else {
+            
+            try {
+                // 2. 【关键】加上 await，让游戏在这里等玩家操作完毕！
+                // payload 就是我们在 showReinsertModal 的 resolve 里传出来的数据
+                const reinsertPayload = await showReinsertModal(game.deck); 
+                
+                // 3. 玩家操作完毕且接口成功后，更新游戏状态
+                hydrateGame(reinsertPayload.game); 
+                setStatus("炸弹已放回，AI 开始行动...");
+                
+                // 4. 轮到 AI 行动，推进下一回合
+                await startGame(); 
+                
+            } catch (error) {
+                // 如果玩家关掉弹窗或者接口报错
+                await recoverAction(error);
+            }
+            } else {
             // 正常抽牌
             if (game.turn === "player" && game.playerAlive) {
                 triggerEffect('attack_received');
