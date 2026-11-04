@@ -214,16 +214,30 @@ function canAct() {
 
 function syncControls() {
   const active = canAct();
+  // 判断当前是否允许抽牌
   const drawAllowed = active && game.canDraw && !game.drewThisTurn && game.deck > 0;
+  
   $("#drawButton").disabled = !drawAllowed;
   $("#deckButton").disabled = !drawAllowed;
-  $("#endButton").disabled = !active || game.hand.length === 0;
   $("#drawButton span").textContent = "抽取 1 张";
   $(".deck-label").textContent = `抽取 1 张`;
   $("#deckButton").setAttribute("aria-label", `从牌库抽取 1 张牌`);
-  $("#endButton span").textContent = game.selectedCard ? "出牌并结束" : "结束回合";
-  handElement.querySelectorAll(".hand-card").forEach((node) => { node.disabled = !active || !CARD_LIBRARY[node.dataset.cardId] || node.dataset.cardId === "exploding_kitten"; });
+
+  // 只有轮到玩家，且【选中了某张牌】时，出牌按钮才可用
+  $("#endButton").disabled = !active || !game.selectedCard;
+  $("#endButton").textContent = game.selectedCard ? "打出选中卡牌" : "请先选牌";
+
+  const skipDrawBtn = document.getElementById("skipDrawButton");
+  if (skipDrawBtn) {
+    // 只要轮到玩家，就可以选择直接结束回合
+    skipDrawBtn.disabled = !active;
+  }
+
+  handElement.querySelectorAll(".hand-card").forEach((node) => { 
+    node.disabled = !active || !CARD_LIBRARY[node.dataset.cardId] || node.dataset.cardId === "exploding_kitten"; 
+  });
   $(".player-zone").setAttribute("aria-busy", String(game.busy));
+
   if (!game.connected) {
     $("#turnPill").textContent = "等待连接";
     $("#actionTitle").textContent = "正在连接牌局";
@@ -247,10 +261,11 @@ function syncControls() {
   } else {
     $("#turnPill").textContent = "你的回合";
     $("#actionTitle").textContent = game.hand.length ? "轮到你了，谨慎出牌" : "先领取你的手牌";
-    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw ? "本回合已抽牌，可选牌或结束回合。" : `可抽取 1 张牌${game.hand.length ? "，或选择一张手牌使用。" : "，开始对局。"}`;
+    $("#actionHint").textContent = game.drewThisTurn || !game.canDraw 
+      ? "本回合已抽牌，可选牌或结束回合。" 
+      : "你可以抽牌、出牌，或直接选择不抽牌并结束回合。";
   }
 }
-
 function setBusy(busy) { game.busy = busy; syncControls(); }
 function showError(error) { setStatus(error.name === "TimeoutError" ? "请求超时，操作结果尚未确认。请稍后刷新并检查服务状态。" : error.message || "操作未完成，请重试。", true); }
 
@@ -288,84 +303,30 @@ async function drawCard() {
     if (payload.defused || payload.need_reinsert || payload.needReinsert) {
       triggerEffect('defuse');
       setStatus("拆弹成功，请选择炸弹放回牌库的位置。");
-
       const deckSize = payload.deckSize ?? payload.game?.deck ?? game.deck ?? 1;
       try {
         const reinsertPayload = await showReinsertModal(deckSize);
         if (reinsertPayload?.game) hydrateGame(reinsertPayload.game);
-        setStatus("炸弹已放回牌库。");
+        setStatus("炸弹已放回牌库，回合结束。");
       } catch (err) {
         await recoverAction(err);
-        return;
       }
-
-      await finishTurnAndRunAI();   // 放回后推进回合
       return;
     }
 
     if (drawn.includes('attack')) triggerEffect('attack_received');
     setStatus(`你抽取了：${names}，回合结束。`);
-    await finishTurnAndRunAI();
   } catch (error) {
     await recoverAction(error);
   } finally {
     setBusy(false);
   }
 }
-async function endTurn() {
-  if (!canAct() || !game.hand.length) return;
-  
-  try {
-    setBusy(true);
-    let peekedCards = [];
-
-    // 1. 如果选了牌，先出牌
-    if (game.selectedCard) {
-      const played = await api(`/games/${game.gameId}/play`, { method: "POST", body: JSON.stringify({ cardId: game.selectedCard }) });
-      
-      // 检查后端有没有返回预知的牌
-      if (played.peek && played.peek.length > 0) {
-        peekedCards = played.peek;
-      }
-      
-      hydrateGame(played.game);
-    }
-    
-    if (game.gameOver) return;
-
-    // 2. 如果刚才看牌了，弹出模态框，并暂停流程
-    if (peekedCards.length > 0) {
-      showPeekModal(peekedCards);
-      return; // 这里先 return，不解除 busy 状态
-    }
-
-    // 3. 如果没有看牌，正常结束回合，呼叫 AI
-    await finishTurnAndRunAI();
-
-  } catch (error) { 
-    await recoverAction(error); 
-    setBusy(false); // 报错时恢复状态
-  }
-}
-
-async function finishTurnAndRunAI() {
-  try {
-    setStatus("其他 AI 对手正在依次行动，手牌数量将在服务端返回后更新…");
-    const payload = await api(`/games/${game.gameId}/end-turn`, { method: "POST" });
-    game.drewThisTurn = false;
-    hydrateGame(payload.game);
-    setStatus(game.gameOver ? "本局已结束，请查看对局动态。" : "其他对手已完成行动，轮到你了！");
-  } catch (error) {
-    await recoverAction(error);
-  } finally {
-    setBusy(false); // 这里才真正解除锁定状态
-  }
-}
 
 function showPeekModal(cards) {
   const modal = document.getElementById('peekModal');
   const container = document.getElementById('peekCardsContainer');
-  container.innerHTML = ''; // 清空旧内容
+  container.innerHTML = '';
   
   cards.forEach(cardId => {
     const node = document.getElementById("cardTemplate").content.firstElementChild.cloneNode(true);
@@ -377,10 +338,8 @@ function showPeekModal(cards) {
   
   modal.hidden = false;
   
-  // 绑定关闭按钮逻辑
   document.getElementById('closePeekBtn').onclick = async () => {
     modal.hidden = true;
-    // 玩家看完并点击确认后，现在才真正结束回合！
     await finishTurnAndRunAI(); 
   };
 }
@@ -414,11 +373,31 @@ async function playSelectedCard() {
     }
     
     hydrateGame(played.game);
-    setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
+    
+    if (game.turn !== "player") {
+      setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，回合已结束。`);
+    } else {
+      setStatus(`已打出「${CARD_LIBRARY[game.selectedCard]?.name}」，你可以继续出牌或点击抽牌结束回合。`);
+    }
   } catch (error) { 
     await recoverAction(error); 
   } finally { 
     setBusy(false); 
+  }
+}
+
+async function endTurnNoDraw() {
+  if (!canAct()) return;
+  try {
+    setBusy(true);
+    setStatus("正在跳过抽牌并结束回合...");
+    const payload = await api(`/games/${game.gameId}/end-turn-no-draw`, { method: "POST" });
+    hydrateGame(payload.game);
+    setStatus("你选择了不抽牌，当前对手已完成行动。");
+  } catch (error) {
+    await recoverAction(error);
+  } finally {
+    setBusy(false);
   }
 }
 function openSettings() {
@@ -431,8 +410,17 @@ function closeSettings() {
   previouslyFocused?.focus();
 }
 $("#endButton").addEventListener("click", playSelectedCard);
+const skipDrawBtn = document.createElement("button");
+skipDrawBtn.id = "skipDrawButton";
+skipDrawBtn.className = "primary-button"; 
+skipDrawBtn.innerHTML = "<span>不抽牌并结束</span>";
+skipDrawBtn.addEventListener("click", endTurnNoDraw);
+
+if ($("#endButton") && $("#endButton").parentNode) {
+  $("#endButton").parentNode.insertBefore(skipDrawBtn, $("#endButton").nextSibling);
+}
+
 $("#deckButton").addEventListener("click", drawCard);
-$("#drawButton").addEventListener("click", drawCard);
 $("#settingsButton").addEventListener("click", openSettings);
 document.querySelectorAll("[data-close-settings]").forEach((button) => button.addEventListener("click", closeSettings));
 $("#saveApiButton").addEventListener("click", closeSettings);
